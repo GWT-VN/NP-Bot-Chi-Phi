@@ -1,6 +1,6 @@
 // Test parser sổ chi phí NP — chạy: node test-parser.mjs (exit 0 = đạt, 1 = hỏng). Chép từ bản gốc @da1b637.
 // Mỗi ca gắn nhãn FIX-* = bản sửa mà ca đó bảo vệ. Gỡ fix → ca đó PHẢI hỏng (red-green).
-import { parseEntry, detectHoaDon, route, repText, phanLoaiReply, nenRep } from "./scanner.mjs";
+import { parseEntry, detectHoaDon, route, repText, phanLoaiReply, nenRep, nghiThieuIntent } from "./scanner.mjs";
 
 // MẶC ĐỊNH hasDirectImg:true cho mọi ca — từ 2026-08-14 khoản phải kèm ảnh chứng từ mới ghi (xem nhóm ẢNH-*),
 // nên hình dạng "khoản thật" là CÓ ảnh. Ca nào muốn kiểm chính luật ảnh thì tự truyền hasDirectImg:false.
@@ -627,6 +627,18 @@ for (const [tag, cond, want] of [
   else fails.push({ tag, input: tag, want, got: cond });
 }
 
+// ── INTENT: chưa bật Message Content Intent → mọi tin người có content "" → phải DỪNG, không ⚠️ oan cả loạt ──
+const nguoi = (content, extra = {}) => ({ author: { bot: false }, content, ...extra });
+for (const [tag, msgs, want] of [
+  ["INTENT-3-tin-rỗng→nghi", [nguoi(""), nguoi(""), nguoi("", { attachments: [{ url: "x" }] })], true],
+  ["INTENT-có-1-tin-có-chữ→không-nghi", [nguoi(""), nguoi(""), nguoi("chi ship 45k")], false],
+  ["INTENT-dưới-3-tin→không-nghi", [nguoi(""), nguoi("")], false],
+  ["INTENT-tin-bot-không-tính", [nguoi(""), nguoi(""), { author: { bot: true }, content: "" }], false],
+  ["INTENT-forward-không-tính-là-rỗng", [nguoi(""), nguoi(""), nguoi("", { message_snapshots: [{ message: { content: "x" } }] })], false],
+]) {
+  const got = nghiThieuIntent(msgs);
+  if (got === want) pass++; else fails.push({ tag, input: tag, want, got });
+}
 const total = pass + fails.length; // đếm theo ca THỰC chạy (đã lọc ca Hiền)
 for (const f of fails) console.log(`HỎNG [${f.tag}] "${f.input.slice(0, 56)}"\n     mong=${f.want}  thực=${f.got}`);
 console.log(`\n${pass}/${total} đạt${fails.length ? ` · ${fails.length} HỎNG (${[...new Set(fails.map((f) => f.tag))].join(", ")})` : ""}`);

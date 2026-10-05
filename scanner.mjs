@@ -182,6 +182,28 @@ function dungItem(m, chanId, c, { expired = false, rep = null } = {}) {
   };
 }
 
+// Chưa bật Message Content Intent → Discord trả content "" cho MỌI tin người (trừ tin @bot). Không chặn thì bot ⚠️ oan
+// mọi tin có ảnh ("thiếu cả tiền tố lẫn số") và bỏ qua mọi tin chữ. ≥3 tin người, tin nào cũng rỗng chữ (không tính
+// tin forward — chữ của nó nằm trong snapshot) → gần như chắc chắn thiếu intent, không phải người gửi toàn ảnh trơn.
+export function nghiThieuIntent(msgs) {
+  const nguoi = (msgs || []).filter((m) => !m.author?.bot);
+  return nguoi.length >= 3 && nguoi.every((m) => !String(m.content || "").trim() && !(m.message_snapshots || []).length);
+}
+
+// Đọc 1 trang tin. KHÁC bản gốc: bản gốc nuốt mọi lỗi (`catch { continue; }`, batch không phải mảng → break) nên token
+// sai / bot chưa vào kênh ra "0 tin", job vẫn XANH. Bot mới dựng là đúng lúc dễ sai mấy thứ đó nhất → phải NÉM.
+async function layTrang(url, tenKenh) {
+  for (let i = 0; i < 5; i++) {
+    const r = await fetch(url, H);
+    if (r.status === 429) { const d = await r.json().catch(() => ({})); await sleep((d.retry_after ?? 1) * 1000 + 100); continue; }
+    if (!r.ok) throw new Error(`Discord ${r.status} khi đọc kênh ${tenKenh} — kiểm DISCORD_BOT_TOKEN, bot đã được mời vào kênh, có quyền View Channel + Read Message History`);
+    const batch = await r.json();
+    if (!Array.isArray(batch)) throw new Error(`Discord trả dữ liệu lạ khi đọc kênh ${tenKenh}`);
+    return batch;
+  }
+  throw new Error(`Discord 429 quá 5 lần khi đọc kênh ${tenKenh}`);
+}
+
 async function buildWorklist() {
   // Dedup theo FILE, không theo quỹ: 1 file = 1 _state, mà quỹ chỉ biết được SAU khi parse.
   const seen = {};
@@ -200,19 +222,19 @@ async function buildWorklist() {
     // (--days) hoặc hết tin. Trước đây fetch 1 lần (trần 100): chạm trần thì bỏ sót tin cũ trong cửa sổ — tin
     // ⚠️ sửa muộn trôi khỏi tầm, im lặng không vào sổ. Trần cứng MAX_PAGES chặn vòng lặp vô hạn khi API lỗi.
     const msgs = [];
-    try {
-      let before = null;
-      for (let page = 0; page < MAX_PAGES; page++) {
-        const q = before ? `?limit=100&before=${before}` : "?limit=100";
-        const batch = await (await fetch(`${API}/channels/${id}/messages${q}`, H)).json();
-        if (!Array.isArray(batch) || !batch.length) break;
-        msgs.push(...batch);
-        before = batch[batch.length - 1].id;
-        // Discord trả MỚI→CŨ: tin cuối batch đã cũ hơn sàn FETCH → mọi trang sau còn cũ hơn nữa → dừng.
-        if (batch.length < 100 || (!all && String(batch[batch.length - 1].timestamp) < fetchFloor)) break;
-        if (page === MAX_PAGES - 1) logLine(`⚠ ${c.name} vượt ${MAX_PAGES} trang (~${MAX_PAGES * 100} tin) — dừng, có thể còn sót; quét --all nếu cần`);
-      }
-    } catch { continue; }
+    let before = null;
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const q = before ? `?limit=100&before=${before}` : "?limit=100";
+      const batch = await layTrang(`${API}/channels/${id}/messages${q}`, c.name);
+      if (!batch.length) break;
+      msgs.push(...batch);
+      before = batch[batch.length - 1].id;
+      // Discord trả MỚI→CŨ: tin cuối batch đã cũ hơn sàn FETCH → mọi trang sau còn cũ hơn nữa → dừng.
+      if (batch.length < 100 || (!all && String(batch[batch.length - 1].timestamp) < fetchFloor)) break;
+      if (page === MAX_PAGES - 1) logLine(`⚠ ${c.name} vượt ${MAX_PAGES} trang (~${MAX_PAGES * 100} tin) — dừng, có thể còn sót; quét --all nếu cần`);
+    }
+    if (nghiThieuIntent(msgs))
+      throw new Error(`Mọi tin người trong kênh ${c.name} đều rỗng chữ — gần như chắc chắn bot CHƯA BẬT Message Content Intent (Discord Developer Portal → Bot → Privileged Gateway Intents). Dừng, không ⚠️ oan.`);
     if (!msgs.length) continue;
     for (const m of msgs) {
       if (m.author?.bot) continue;
@@ -659,14 +681,13 @@ export function repText(authorId, reason) {
 
 // ── Bước quét ────────────────────────────────────────────────────────────────
 async function scanPhase() {
-  if (!Object.keys(BOOKS).length) { logLine("⚠ channels.json thiếu _books — không có sổ để ghi."); return; }
+  await books.kiemTraLocale(BOOKS.np.sheetId); // ném nếu Sheet không ở vi_VN — dừng TRƯỚC khi ghi ngày sai
   let work = await buildWorklist();
   if (limit && work.length > limit) work = work.slice(0, limit);
   logLine(`Tìm thấy ${work.length} tin cần xét (chưa ghi).`);
   if (!work.length) return;
 
   const perBook = {}; const warns = [];
-  const proofs = [];   // reply người thanh toán + ảnh → đính chứng từ vào giao dịch gốc (xử lý ở pha riêng)
   // Tin NAY bị BỎ QUA IM LẶNG nhưng TRƯỚC ĐÂY từng bị ⚠️ (wasRepped) — vd tin hướng dẫn của chị Trang từng
   // bị ⚠️ theo luật cũ, nay khớp nhánh im lặng. Nhánh silent chỉ `continue` nên ⚠️+rep cũ treo lại thành
   // "báo sai" (§6 ghi rõ là nợ "chưa làm"). Gom ở đây để pha dọn gỡ ⚠️ + xoá tin rep của chính bot.
@@ -695,8 +716,7 @@ async function scanPhase() {
     // mới; reply trò chuyện → bỏ qua im lặng.
     if (item.replyToId) {
       const loaiRep = phanLoaiReply(item);
-      if (loaiRep === "dinh") proofs.push(item);
-      else if (loaiRep === "canhbao") {
+      if (loaiRep === "canhbao") {
         warns.push({ channelId: item.channelId, id: item.id, authorId: item.authorId, book: item.book, wasRepped: item.wasRepped, repMsgId: item.repMsgId, repReason: item.repReason, reason: "reply không tính là khoản" });
         manualCount++;
       } else { chatSkip++; if (item.wasRepped) staleClears.push(item); }
@@ -739,41 +759,7 @@ async function scanPhase() {
     logLine(`  ${rt.emoji} ${rt.summary}  [${item.channel}/${item.author}]`);
   }
 
-  logLine(`Kết quả: ${writeCount} ghi · ${manualCount} cần xử lý tay · ${chatSkip} bỏ qua (không phải giao dịch)${proofs.length ? ` · ${proofs.length} reply chứng từ` : ""}${staleClears.length ? ` · ${staleClears.length} dọn báo sai (nay im lặng)` : ""}${expiredWarns.length ? ` · ${expiredWarns.length} hết hạn (⌛)` : ""}${xBoQua.length ? ` · ${xBoQua.length} thiếu ảnh (📷)` : ""}.`);
-
-  // ── Pha đính ảnh chứng từ từ reply của người thanh toán vào folder giao dịch GỐC ──
-  // Reply KHÔNG tạo dòng sổ. Ảnh vào đúng folder giao dịch gốc (định vị theo msgId gốc, tên ảnh theo id
-  // reply để không đè ảnh gốc). Tin gốc có ảnh nên ô "Link chứng từ" của khoản gốc đã trỏ sẵn tới folder
-  // này từ lúc ghi → KHÔNG cần đụng vào dòng sổ. Chạy TRƯỚC nhánh dry-return để --dry cũng in được dự định.
-  for (const item of proofs) {
-    const gp = parseEntry(item.refItem);
-    const grt = gp.skip ? gp : route(item.refItem, gp);
-    if (grt.skip) { logLine(`  ↷ reply ${item.id} (${item.author}): tin gốc ${item.refItem.id} chưa vào sổ được (${grt.reason}) — chờ sửa tin gốc, lượt sau đính lại`); continue; }
-    const b = BOOKS[grt.book];
-    if (!b?.folderId) { logLine(`  ↷ reply ${item.id}: book '${grt.book}' chưa có folderId — bỏ qua`); continue; }
-    if (dry) { logLine(`  📎 [DRY] sẽ đính ${item.images.length} ảnh (${item.author}) → giao dịch gốc ${item.refItem.id} · ${b.label}/${grt.tab}`); continue; }
-    const buffers = [];
-    for (const img of item.images) { const buf = await fetchImageBuffer(img).catch(() => null); if (buf) buffers.push(buf); }
-    if (!buffers.length) { logLine(`  ↷ reply ${item.id}: không tải được ảnh — bỏ qua`); continue; }
-    try {
-      await drive.archiveTransaction(driveOf(), b.folderId, { quy: grt.quy, loai: grt.loai, dmy: gp.ngay, msgId: item.refItem.id, desc: gp.noiDung, buffers, anhMsgId: item.id });
-      // Đánh dấu reply đã xử lý (rows:[] → CHỈ ghi _state!D, KHÔNG ghi dòng sổ) TRƯỚC khi ✅ — giống bất biến
-      // khoản thường: chỉ ✅ sau khi trạng thái bền đã ghi. Lỗi ở đây → không ✅ → lượt sau đính lại (ảnh trùng
-      // tên đã có được archiveTransaction bỏ qua nên không nhân đôi).
-      await books.commit({ sheetId: b.sheetId, tab: grt.tab, rows: [], msgIds: [item.id] });
-      // Bot CŨ đọc reply này như giao dịch → có thể đã gắn ⚠️ + rep "CHƯA vào sổ" (đúng bug đang sửa). Đính
-      // xong phải DỌN: gỡ ⚠️ + xoá tin rep cũ, để không còn "chưa vào sổ" treo cạnh ✅. Chỉ xoá rep lấy TỪ _rep!B.
-      if (item.wasRepped) {
-        try { await unreact(item.channelId, item.id, "⚠️"); logLine(`  🧹 gỡ ⚠️ ${item.id} (reply chứng từ, đã đính)`); } catch {}
-        if (item.repMsgId) {
-          try { await deleteMessage(item.channelId, item.repMsgId); logLine(`  🗑️ xoá rep ${item.repMsgId} của reply ${item.id}`); }
-          catch (e) { logLine(`✗ xoá rep ${item.repMsgId} (reply ${item.id}): ${e.message}`); }
-        }
-      }
-      try { await react(item.channelId, item.id, "✅"); } catch (e) { logLine(`✗ react chứng từ ${item.id}: ${e.message}`); }
-      logLine(`  📎 đính ${buffers.length} ảnh (${item.author}) → giao dịch gốc ${item.refItem.id} · ${b.label}/${grt.tab}`);
-    } catch (e) { logLine(`  ⚠️ đính ảnh reply ${item.id} → gốc ${item.refItem.id} lỗi: ${e?.message ?? e}`); }
-  }
+  logLine(`Kết quả: ${writeCount} ghi · ${manualCount} cần xử lý tay · ${chatSkip} bỏ qua (không phải giao dịch)${staleClears.length ? ` · ${staleClears.length} dọn báo sai (nay im lặng)` : ""}${expiredWarns.length ? ` · ${expiredWarns.length} hết hạn (⌛)` : ""}${xBoQua.length ? ` · ${xBoQua.length} thiếu ảnh (📷)` : ""}.`);
 
   // ── Pha DỌN "báo sai": tin nay bị BỎ QUA IM LẶNG mà trước từng bị ⚠️ → gỡ ⚠️ + xoá tin rep của bot ──
   // Chạy ở CẢ dry (chỉ log) lẫn thật. Idempotent: unreact/deleteMessage coi 404 = đã gỡ/xoá rồi = thành công,
@@ -832,7 +818,7 @@ async function scanPhase() {
     } catch (e) { logLine(`✗ đổi rep hết hạn ${w.id}: ${e.message}`); }
   }
 
-  if (dry) { logLine("[DRY] không ghi/react/lưu Drive (pha đính chứng từ + dọn báo sai + 📷 thiếu ảnh + hết hạn ở trên chỉ mô phỏng)."); return; }
+  if (dry) { logLine("[DRY] không ghi/react/lưu Drive (pha dọn báo sai + 📷 thiếu ảnh + hết hạn ở trên chỉ mô phỏng)."); return; }
 
   for (const d of Object.values(perBook)) {
     const b = BOOKS[d.book];
@@ -843,6 +829,7 @@ async function scanPhase() {
       // Commit hỏng (tab bị đổi tên tay, mất quyền, Sheets 5xx…) → dòng KHÔNG vào sổ và msgId KHÔNG vào
       // _state. Tin thuộc khóa này vì thế KHÔNG được ✅ và KHÔNG bị gỡ ⚠️ — để lượt sau quét lại thật.
       logLine(`✗ commit ${d.book}/${d.tab} lỗi — ${d.reactions.length} tin KHÔNG được ✅ (giữ nguyên ⚠️ nếu có), lượt sau quét lại: ` + (e?.message ?? e));
+      process.exitCode = 1;
       continue;
     }
     for (const rc of d.reactions) {
@@ -873,8 +860,8 @@ async function scanPhase() {
     // không mắng lại mỗi lượt.
     const reasonChanged = nenRep(w);
     // NHẮC LẠI 1 LẦN/NGÀY (Dũng chốt 2026-08-13): cùng lý do mà tin vẫn ⚠️ chưa sửa → ở lượt BÁO CÁO cuối ngày
-    // (!noReport, tức 20:30) ĐẨY tin nhắc xuống đáy kênh (xoá rep cũ + gửi lại) để chị Trang/Hiền theo dõi; các
-    // lượt 11:00/15:00 (--no-report) vẫn IM. Cần repMsgId để đẩy — dòng _rep cũ 2 cột không có id thì để im.
+    // (cờ --nhac-lai, tức 20:30) ĐẨY tin nhắc xuống đáy kênh (xoá rep cũ + gửi lại) để chị Trang/Hiền theo dõi; các
+    // lượt 11:00/15:00 (không có cờ --nhac-lai) vẫn IM. Cần repMsgId để đẩy — dòng _rep cũ 2 cột không có id thì để im.
     const nhacLai = !reasonChanged && nhacLaiLuot && w.wasRepped && w.repMsgId;
     if (!reasonChanged && !nhacLai) continue;
     try {
@@ -984,74 +971,58 @@ async function requetPhase(ids) {
   }
 }
 
-// ── Main (CHỈ chạy khi gọi trực tiếp từ CLI — import an toàn, không ghi/DM) ────
+// ── Main (CHỈ chạy khi gọi trực tiếp từ CLI — import an toàn) ─────────────────
+// MỌI lỗi đặt process.exitCode = 1 → workflow ĐỎ → GitHub gửi email. Bản gốc nuốt lỗi quét ("vẫn báo cáo") vì còn
+// DM báo cáo làm kênh báo; NP không có DM, workflow đỏ là kênh báo lỗi DUY NHẤT.
 if (path.resolve(process.argv[1] || "") === fileURLToPath(import.meta.url)) {
   (async () => {
-    // --xoadong chạy RIÊNG: sửa chữa một dòng ghi nhầm rồi dừng. Đặt TRƯỚC --requet để nếu lỡ truyền cả hai
-    // thì việc phá huỷ (xoá dòng) không bị chạy kèm im lặng sau một việc khác.
+    if (!TOKEN) die("Thiếu DISCORD_BOT_TOKEN");
+    const b = BOOKS.np, tab = b.tabs.default;
+    if (!b.sheetId) die("config.json chưa có book.sheetId — chạy setup.mjs trước");
+    if (!Object.keys(CHANS).length) die("config.json chưa khai kênh nào trong channels");
+    // --xoadong=<dòng>:<sốtiền>[:<DD/MM/YYYY>] — xoá 1 dòng ghi nhầm. NP 1 sổ 1 tab nên khỏi khai book/tab như bản gốc.
+    // Đối chiếu SỐ TIỀN (+ ngày) trước khi xoá để không xoá nhầm dòng khi ai đó đã chèn/xoá tay.
     if (xoaDongArg) {
-      const [bk, tabKey, rowS, tienS, ngayS] = xoaDongArg.split(":");
-      const b = BOOKS[bk], tab = b?.tabs?.[tabKey], rowNum = Number(rowS), expectAmount = Number(tienS);
-      if (!b) { logLine(`✗ --xoadong: không có book '${bk}' (có: ${Object.keys(BOOKS).join(", ")})`); return; }
-      if (!tab) { logLine(`✗ --xoadong: book '${bk}' không có tab '${tabKey}' (có: ${Object.keys(b.tabs || {}).join(", ")})`); return; }
-      if (!Number.isInteger(rowNum) || rowNum < 2) { logLine(`✗ --xoadong: số dòng không hợp lệ '${rowS}' (dòng 1 là tiêu đề)`); return; }
-      if (!Number.isFinite(expectAmount) || expectAmount <= 0) { logLine(`✗ --xoadong: thiếu/sai số tiền đối chiếu '${tienS}' — BẮT BUỘC để không xoá nhầm dòng`); return; }
+      const [rowS, tienS, ngayS] = xoaDongArg.split(":");
+      const rowNum = Number(rowS), expectAmount = Number(tienS);
+      if (!Number.isInteger(rowNum) || rowNum < 2) die(`--xoadong: số dòng không hợp lệ '${rowS}' (dòng 1 là tiêu đề)`);
+      if (!Number.isFinite(expectAmount) || expectAmount <= 0) die(`--xoadong: thiếu/sai số tiền đối chiếu '${tienS}' — BẮT BUỘC để không xoá nhầm dòng`);
       logLine(`=== Xoá dòng ${rowNum} · ${b.label}/${tab} · đối chiếu ${vnd(expectAmount)}đ${ngayS ? ` · ngày ${ngayS}` : ""}${dry ? " (DRY)" : ""} ===`);
       try {
         const r = await books.xoaDongSo({ sheetId: b.sheetId, tab, rowNum, expectAmount, expectDMY: ngayS || null, dry });
         logLine(r.dry ? `   [DRY] KHỚP — sẽ xoá: ${r.mota}` : `   🗑️ ĐÃ XOÁ dòng ${r.rowNum}: ${r.mota}`);
-        // Sổ là nguồn chuẩn, bảng portal chỉ là bản chiếu → xoá xong phải mirror lại, không thì portal còn hiện
-        // dòng ma cho tới lượt cron sau (người nhìn portal tưởng chưa xoá).
-        if (!dry) { try { const m = await mirror(); logLine("   mirror lại: " + JSON.stringify(m.summary)); } catch (e) { logLine("   ✗ mirror lỗi (dòng ĐÃ xoá, portal cập nhật ở lượt sau): " + (e?.message ?? e)); } }
-      } catch (e) { logLine(`   ✗ ${e?.message ?? e}`); }
-      logLine("=== Xong (xoadong) ===");
+      } catch (e) { logLine(`   ✗ ${e?.message ?? e}`); process.exitCode = 1; }
       return;
     }
-    // --suadong: đọc lại tin gốc → parse theo luật HIỆN TẠI → ghi đè Diễn giải + Ghi chú của dòng đã ghi.
+    // --suadong=<dòng>:<msgId> — đọc lại tin gốc, parse theo luật HIỆN TẠI, ghi đè Diễn giải + Ghi chú (tiền giữ nguyên).
     if (suaDongArg) {
-      const [bk, tabKey, rowS, msgId] = suaDongArg.split(":");
-      const b = BOOKS[bk], tab = b?.tabs?.[tabKey], rowNum = Number(rowS);
-      if (!b || !tab) { logLine(`✗ --suadong: sai book/tab '${bk}:${tabKey}'`); return; }
-      if (!Number.isInteger(rowNum) || rowNum < 2 || !msgId) { logLine(`✗ --suadong: cần <book>:<tabKey>:<dòng>:<msgId>`); return; }
+      const [rowS, msgId] = suaDongArg.split(":");
+      const rowNum = Number(rowS);
+      if (!Number.isInteger(rowNum) || rowNum < 2 || !/^\d{5,}$/.test(msgId || "")) die("--suadong: cần <dòng>:<msgId> (id số, không phải link)");
       logLine(`=== Sửa chữ dòng ${rowNum} · ${b.label}/${tab} · theo tin ${msgId}${dry ? " (DRY)" : ""} ===`);
       const found = await timTinTheoId(msgId);
-      if (!found) { logLine(`   ✗ không thấy tin ${msgId} trong kênh nào đã cấu hình`); return; }
+      if (!found) { logLine(`   ✗ không thấy tin ${msgId} trong kênh đã cấu hình`); process.exitCode = 1; return; }
       const it = dungItem(found.m, found.cid, found.c);
       const p = it ? parseEntry(it) : { skip: true, reason: "tin rỗng" };
-      if (p.skip) { logLine(`   ✗ tin nay KHÔNG parse ra khoản (${p.reason}) — không có chữ mới để ghi, dừng.`); return; }
+      if (p.skip) { logLine(`   ✗ tin nay KHÔNG parse ra khoản (${p.reason}) — dừng.`); process.exitCode = 1; return; }
       const rt = route(it, p);
-      if (rt.skip) { logLine(`   ✗ tin nay không route được (${rt.reason}) — dừng.`); return; }
+      if (rt.skip) { logLine(`   ✗ tin nay không route được (${rt.reason}) — dừng.`); process.exitCode = 1; return; }
       try {
         const r = await books.suaDongSo({ sheetId: b.sheetId, tab, rowNum, expectDMY: p.ngay, dienGiai: p.noiDung, ghiChu: p.ghiChu || "", dry });
         logLine(`   cũ : "${r.cu.dienGiai}" | ghi chú: "${r.cu.ghiChu}"`);
         logLine(`   mới: "${r.moi.dienGiai}" | ghi chú: "${r.moi.ghiChu}"`);
         logLine(r.dry ? "   [DRY] khớp ngày — sẽ ghi đè 2 ô trên." : `   ✏️ ĐÃ SỬA dòng ${r.rowNum}`);
-        if (!dry) { try { const m = await mirror(); logLine("   mirror lại: " + JSON.stringify(m.summary)); } catch (e) { logLine("   ✗ mirror lỗi (ô ĐÃ sửa): " + (e?.message ?? e)); } }
-      } catch (e) { logLine(`   ✗ ${e?.message ?? e}`); }
-      logLine("=== Xong (suadong) ===");
+      } catch (e) { logLine(`   ✗ ${e?.message ?? e}`); process.exitCode = 1; }
       return;
     }
-    // --requet chạy RIÊNG: chấm lại đúng mấy tin được nêu rồi dừng. KHÔNG quét cả kênh, KHÔNG mirror, KHÔNG DM
-    // — lệnh sửa chữa chạy tay, đừng để nó kéo theo tác dụng phụ của một lượt cron.
+    // --requet chạy RIÊNG: chấm lại đúng mấy tin được nêu rồi dừng (lệnh sửa chữa chạy tay).
     if (requetIds.length) {
       logLine(`=== Chấm lại ${requetIds.length} tin theo luật hiện tại${dry ? " (DRY)" : ""} ===`);
-      try { await requetPhase(requetIds); } catch (e) { logLine("✗ requet lỗi: " + (e?.message ?? e)); }
-      logLine("\n=== Xong (requet) ===");
+      try { await requetPhase(requetIds); } catch (e) { logLine("✗ requet lỗi: " + (e?.message ?? e)); process.exitCode = 1; }
       return;
     }
-    logLine(`=== Scanner chạy (text-parse, ${sinceISO ? `since=${sinceArg}` : `days=${all ? "all" : days}`}${limit ? `, limit=${limit}` : ""}${dry ? ", DRY" : ""}) ===`);
-    try { await scanPhase(); } catch (e) { logLine("✗ Bước quét lỗi (vẫn báo cáo): " + (e?.message ?? e)); }
-    // Piggyback: mirror sheet -> Supabase cuối run THẬT (bỏ qua --dry vì scanPhase không ghi gì để mirror).
-    // Chạy bất kể --no-report (11:00/15:00 vẫn ghi sổ thật) — không chặn luồng chính nếu lỗi.
-    if (!dry) {
-      try { const m = await mirror(); logLine("mirror: " + JSON.stringify(m.summary)); }
-      catch (e) { logLine("✗ mirror cuối run lỗi (không chặn): " + (e?.message ?? e)); }
-    }
-    if (dry || noReport) { logLine("=== Xong (không báo cáo) ==="); return; }
-    try {
-      const out = execFileSync(process.execPath, ["xet-duyet-chi-phi/report.mjs"], { cwd: ROOT, env: process.env, encoding: "utf8" });
-      logLine("report: " + out.trim().split("\n").slice(-3).join(" | "));
-    } catch (e) { logLine("✗ report lỗi: " + (e?.message ?? e)); }
-    logLine("=== Xong ===");
+    logLine(`=== Scanner NP chạy (${sinceISO ? `since=${sinceArg}` : `days=${all ? "all" : days}`}${limit ? `, limit=${limit}` : ""}${dry ? ", DRY" : ""}${nhacLaiLuot ? ", nhắc lại" : ""}) ===`);
+    try { await scanPhase(); } catch (e) { logLine("✗ Bước quét lỗi: " + (e?.message ?? e)); process.exitCode = 1; }
+    logLine(process.exitCode ? "=== Xong — CÓ LỖI (workflow sẽ đỏ) ===" : "=== Xong ===");
   })();
 }
