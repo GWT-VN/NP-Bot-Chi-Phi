@@ -153,7 +153,7 @@ const laKenh = (k, v) => /^\d+$/.test(k) && v && typeof v === "object" && !!v.ro
 // Dựng 1 work item từ tin Discord thô. TÁCH RA để buildWorklist (lượt quét) và requetPhase (--requet) dùng
 // CHUNG: hai nơi tự dựng item là sớm muộn lệch field (vd quên hasDirectImg) → lệnh chẩn đoán phán một đằng,
 // lượt quét thật làm một nẻo, mà không có gì báo. Trả null nếu tin rỗng hẳn (không chữ, không ảnh).
-function dungItem(m, chanId, c, { expired = false, rep = null } = {}) {
+export function dungItem(m, chanId, c, { expired = false, rep = null } = {}) {
   const imgs = atts(m).filter(isImg).slice(0, MAX_IMG_PER_MSG);
   // Ảnh ĐÍNH TRỰC TIẾP (m.attachments) mới là "người này NỘP chứng từ"; ảnh tin FORWARD (message_snapshots)
   // là trích dẫn tin khác — xem chú thích ở parseEntry/THIEU_ANH.

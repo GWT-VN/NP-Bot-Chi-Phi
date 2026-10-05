@@ -1,6 +1,13 @@
 {
-  "_help": "Cấu hình bot NP. channels: { \"<channelId>\": { \"name\": \"new-projects\" } } — kênh không có ở đây thì bot không đọc. book.sheetId/folderId do setup.mjs điền. persons: { \"<userId Discord>\": \"Tên hiển thị trong cột Người\" } (tuỳ chọn; trống thì lấy tên Discord).",
+  "_help": "Cấu hình bot NP. channels: { \"<channelId>\": { \"name\": \"new-projects\" } } — kênh không có ở đây thì bot không đọc. book.sheetId/folderId do setup.mjs điền. persons: { \"<userId Discord>\": \"Tên hiển thị trong cột Người\" } (tuỳ chọn; trống thì lấy tên Discord). quy: [{ \"ten\": \"Quỹ công ty\", \"goiTat\": [\"qct\", \"quỹ cty\"] }] — tên chuẩn ghi vào cột Nguồn quỹ + các cách gọi tắt hay gõ (luật 5).",
   "persons": {},
-  "book": { "label": "Sổ chi phí New Projects", "sheetId": "", "folderId": "", "tab": "Sổ chi phí" },
-  "channels": {}
+  "book": {
+    "label": "Sổ chi phí New Projects",
+    "sheetId": "",
+    "folderId": "",
+    "tab": "Sổ chi phí"
+  },
+  "channels": {},
+  "guildId": "1484009253831315456",
+  "quy": []
 }

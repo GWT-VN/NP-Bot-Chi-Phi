@@ -4,9 +4,11 @@
   "private": true,
   "description": "Bot Discord ghi sổ chi phí kênh New Projects vào Google Sheet riêng",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "test": "node test-parser.mjs && node test-books.mjs && node test-setup.mjs && node test-loi.mjs"
+    "test": "node test-parser.mjs && node test-books.mjs && node test-setup.mjs && node test-loi.mjs && node test-luat.mjs && node test-so-core.mjs"
   },
   "dependencies": {
     "googleapis": "^144.0.0"
