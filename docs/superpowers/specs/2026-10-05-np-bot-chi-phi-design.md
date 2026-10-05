@@ -30,6 +30,7 @@ Thành công là khi:
 | **Bot Discord riêng** (token riêng, chỉ ở kênh NP), **repo riêng**, không Supabase, không lẫn Admin Portal | "Tách riêng ra một file, không lẫn vào Admin Portal". |
 | **Chạy 24/7 trên Mac mini `bella-mac-mini`** (Tailscale), cùng máy với Bắp | Chủ dự án chốt. Bỏ GitHub Actions. |
 | **Chung tài khoản Claude với Bắp** | Chủ dự án chọn. Hệ quả: hai bot chia hạn mức usage. NP xử lý **mọi** tin trong kênh (Bắp chỉ khi được @), nên tốn đều đặn. |
+| **Tài khoản Claude của bot = `ai@gwt.vn`**, tách khỏi tài khoản marketing đang đăng nhập app Claude trên Mac mini, bằng `CLAUDE_CONFIG_DIR=~/.claude-bots` (đăng nhập `/login` một lần). Cả Bắp lẫn NP khởi động với biến này | Tài liệu Claude Code ("Log in with multiple accounts"): mỗi `CLAUDE_CONFIG_DIR` có mục Keychain, settings, plugin riêng; app desktop luôn dùng `~/.claude`. Không dùng `CLAUDE_CODE_OAUTH_TOKEN` vì tài liệu không xác nhận nó chạy được với `--channels`. Plugin Discord phải cài trong `~/.claude-bots`. Keychain chỉ mở khi user macOS đang đăng nhập, nên máy phải tự đăng nhập user chạy bot. |
 | **Hai bot một máy bằng `DISCORD_STATE_DIR` riêng** | Plugin Discord đọc biến này (`server.ts`: `STATE_DIR = process.env.DISCORD_STATE_DIR ?? ~/.claude/channels/discord`); README plugin ghi rõ đây là cách chạy nhiều bot trên một máy. Bắp giữ thư mục mặc định, NP dùng `~/.claude/channels/discord-np`. |
 | Sheet + folder Drive do **`ai@gwt.vn`** tạo | Tài khoản chung GWT. |
 
