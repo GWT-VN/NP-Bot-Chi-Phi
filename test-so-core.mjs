@@ -141,4 +141,5 @@ test("kiem_tin: trả kết quả luật + đã ghi chưa", async () => {
   const t = dung([goc], { daGhi: [] })
   const r = await t.so.kiemTin({ chat_id: KENH, message_id: "100" })
   assert.equal(r.dung_luat, true); assert.equal(r.da_ghi, false); assert.equal(r.nguon_quy, "Quỹ công ty")
+  assert.deepEqual(r.danh_sach_quy, ["Quỹ công ty", "Tiền cá nhân ứng"]) // để bot liệt kê khi tin thiếu quỹ
 })

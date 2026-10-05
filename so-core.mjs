@@ -46,7 +46,7 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     const { m, loi } = await tinGoc(chat_id, message_id);
     if (loi) return tuChoi(loi);
     const daGhi = (await so.loadProcessed()).has(String(m.id));
-    return { ok: true, da_ghi: daGhi, tac_gia: ND(m), ...kiemLuat(m, cfg) };
+    return { ok: true, da_ghi: daGhi, tac_gia: ND(m), danh_sach_quy: [...quyTen], ...kiemLuat(m, cfg) };
   }
 
   async function ghiKhoan(a) {
