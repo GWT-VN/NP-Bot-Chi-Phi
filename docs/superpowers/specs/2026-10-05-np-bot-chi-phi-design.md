@@ -47,8 +47,16 @@ thu: Hoàn tiền cọc 2tr                                        + ảnh
   - **Lỗ đã biết, cố ý không vá:** "VAT" không được hiểu là có hoá đơn, và gõ không dấu thì không bắt được. Bản ghim
     kênh dặn phải gõ có dấu.
 - **Ảnh**: nằm trong cùng tin. Thiếu ảnh thì 📷, không ghi. Ảnh lưu Drive làm bằng chứng, bot **không đọc** ảnh.
-- **Ngày** = ngày nhắn tin vào kênh. **Reply không bao giờ là giao dịch.**
-- **1 tin = 1 khoản.**
+- **Ngày** = ngày nhắn tin vào kênh. Ngoại lệ giữ từ bản gốc: tin MỞ ĐẦU bằng ngày có dấu hiệu cố ý
+  (`Ngày 6/8: chi …`, `6/8: chi …`, `06/08/2025: …`) thì lấy đúng ngày đó, để ghi bù khoản cũ. Phân số sau tiền tố
+  (`chi 1/2 thùng`) không bị đọc thành ngày.
+- **Ngoặc `( )`** tách sang cột Ghi chú, trừ khi ngoặc là toàn bộ mô tả.
+- **Bỏ qua im lặng** (không dấu, không ghi): tin mở đầu bằng `note`/`ghi chú`, tin có cụm `không ghi sổ`, tin ghim,
+  tin thuần trò chuyện không số và không ảnh.
+- **Khoản bằng $** (`chi ChatGPT Plus $20`): ghi dòng ghi nhớ với Thu/Chi trống và `$20 (chưa quy VND)` ở Ghi chú.
+  Bot không tự quy đổi tỷ giá.
+- **Reply không bao giờ là giao dịch.** Reply trông như một khoản thì ⚠️ "gửi tin mới". Reply trò chuyện thì bỏ qua.
+- **1 tin = 1 khoản.** Tin chỉ có số tiền mà không có nội dung thì ⚠️.
 
 | Dấu | Nghĩa |
 |---|---|
@@ -89,8 +97,8 @@ config.json        guildId, channelId (kênh NP), sheetId, folderId, tên tab. K
 scanner.mjs        quét kênh → parseEntry → ghi sổ → lưu ảnh → react/rep; lệnh sửa tay --requet/--xoadong/--suadong
 book.mjs           ghi Sheet 1 sổ 1 tab: buildRow (10 cột), loadProcessed, commit, _rep, xoaDong/suaDong
 drive.mjs          lưu ảnh vào folder Drive
-lib/discord.mjs    REST Discord (fetch tin, phân trang, 429)
-lib/google-auth.mjs  OAuth ai@gwt.vn từ env GOOGLE_OAUTH_*_JSON hoặc file
+lib/google-auth.mjs  OAuth ai@gwt.vn từ env GOOGLE_OAUTH_*_JSON hoặc file credentials.json/token.json
+lib/auth.mjs       đăng nhập Google 1 lần → token.json
 setup.mjs          chạy 1 lần: tạo Sheet (locale, 4 tab, tiêu đề, định dạng, công thức Tổng hợp) + folder, in ID ra
 test-parser.mjs    test offline (npm test)
 .github/workflows/scan.yml
@@ -114,15 +122,29 @@ README.md · HUONG-DAN-NHAN-TIN.md (bản ghim kênh)
 | Secret (GitHub Actions) | Ai đặt | Ghi chú |
 |---|---|---|
 | `DISCORD_BOT_TOKEN` | Chủ dự án tự `gh secret set` | Bot Discord **mới**. Bật Message Content Intent. Chỉ cấp quyền ở kênh NP: View Channel, Read Message History, Send Messages, Add Reactions |
-| `GOOGLE_OAUTH_CREDENTIALS_JSON`, `GOOGLE_OAUTH_TOKEN_JSON` | Agent đặt từ bản đang dùng của bot Sổ quỹ | Refresh token của `ai@gwt.vn`. **Phụ thuộc chung:** token bị thu hồi thì bot NP và bot Sổ quỹ cùng ngừng, cách cấp lại như nhau (`node lib/auth.mjs`) |
+| `GOOGLE_OAUTH_CREDENTIALS_JSON` | Chủ dự án | OAuth client "Desktop app" của dự án Google Cloud mà bot Sổ quỹ đang dùng (`credentials.json`) |
+| `GOOGLE_OAUTH_TOKEN_JSON` | Chủ dự án | Refresh token **riêng** của repo này: chạy `node lib/auth.mjs`, đăng nhập **ai@gwt.vn**, ra `token.json`. Không chép token của bot Sổ quỹ (secret GitHub không đọc ngược được, và máy dev không giữ bản nào). Hai bot dùng chung OAuth client nhưng refresh token độc lập. Xoá client hoặc để consent screen ở chế độ Testing (token hết hạn sau 7 ngày) thì cả hai cùng ngừng. |
+
+Agent không bao giờ cầm giá trị secret. `credentials.json`/`token.json` nằm trong `.gitignore` và chỉ ở máy người chạy
+`setup.mjs`.
 
 Không có khoá Supabase hay khoá ERP nào. Workflow chạy với `permissions: contents: read`.
 
 ## 7. Lỗi và giám sát
 
+- **Lỗi phải làm workflow ĐỎ.** Bản gốc nuốt lỗi Discord: token sai, bot chưa vào kênh (401/403) thì im lặng ra "0 tin"
+  và job vẫn xanh. Bản này ném lỗi khi Discord trả status không OK, và đặt `process.exitCode = 1` mỗi khi bước quét
+  hoặc commit lỗi.
+- **Chưa bật Message Content Intent** thì mọi tin người gửi đến với `content` rỗng, và bot sẽ ⚠️ oan mọi tin có ảnh.
+  Có từ 3 tin người trở lên mà tin nào cũng rỗng chữ thì dừng lượt quét, báo lỗi "kiểm Message Content Intent".
+- **Locale Sheet khác vi_VN** thì dừng ghi và báo lỗi, không ghi ngày sai.
 - Ghi Sheet lỗi thì tin **không** được đánh dấu đã xử lý, lượt sau tự ghi lại. Không mất khoản, không ghi trùng.
 - Lưu Drive lỗi thì vẫn ghi dòng nhưng để trống cột link và log cảnh báo, như bản gốc.
 - Workflow fail thì GitHub gửi email cho người watch repo. Không có kênh báo lỗi nào khác.
+- **Nhắc lại hằng ngày:** lượt 20:30 chạy với `--nhac-lai`. Tin ⚠️ chưa sửa thì xoá rep cũ và rep lại ở đáy kênh. Hai
+  lượt 11:00 và 15:00 không nhắc lại, giống bản gốc.
+- **Sửa tin SAU khi đã ✅** thì bot không đọc lại (tin đã nằm trong `_state`). Người quản lý sửa dòng bằng
+  `--suadong` hoặc `--xoadong`. Bản ghim kênh phải ghi rõ điều này.
 - `concurrency` không huỷ lượt đang chạy, để hai lượt không ghi chồng.
 - Log nằm trong output của run Actions. Runner xoá file sau khi chạy nên không trông vào `logs/`.
 
@@ -139,10 +161,10 @@ Không có khoá Supabase hay khoá ERP nào. Workflow chạy với `permissions
 ## 9. Triển khai
 
 1. Viết code + test (repo này).
-2. Kiểm token OAuth đúng là `ai@gwt.vn` (`oauth2.userinfo` hoặc `drive.about.get`), rồi chạy `setup.mjs` và điền ID
-   vào `config.json`.
-3. Chủ dự án tạo bot Discord, mời vào server, cấp quyền kênh NP, `gh secret set DISCORD_BOT_TOKEN`. Agent đặt 2
-   secret Google.
+2. Chủ dự án đặt `credentials.json` vào repo (gitignore) và chạy `node lib/auth.mjs` đăng nhập ai@gwt.vn. `setup.mjs`
+   tự kiểm tài khoản bằng `drive.about.get`: khác `ai@gwt.vn` thì dừng. Xong thì in ID ra để điền `config.json`.
+3. Chủ dự án tạo bot Discord, mời vào server, cấp quyền kênh NP, rồi `gh secret set` cả 3 secret (token Discord,
+   `credentials.json`, `token.json`).
 4. `workflow_dispatch` với `--dry`, soi log.
 5. Chạy thật một lượt, kiểm Sheet. Cron tự chạy sau khi merge vào `main`.
 6. Ghim `HUONG-DAN-NHAN-TIN.md` lên kênh. Chia sẻ Sheet cho người cần xem, việc này do chủ dự án quyết.
