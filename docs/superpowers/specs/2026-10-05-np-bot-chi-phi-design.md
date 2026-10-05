@@ -30,7 +30,7 @@ Thành công là khi:
 | **Bot Discord riêng** (token riêng, chỉ ở kênh NP), **repo riêng**, không Supabase, không lẫn Admin Portal | "Tách riêng ra một file, không lẫn vào Admin Portal". |
 | **Chạy 24/7 trên Mac mini `bella-mac-mini`** (Tailscale), cùng máy với Bắp | Chủ dự án chốt. Bỏ GitHub Actions. |
 | **Chung tài khoản Claude với Bắp** | Chủ dự án chọn. Hệ quả: hai bot chia hạn mức usage. NP xử lý **mọi** tin trong kênh (Bắp chỉ khi được @), nên tốn đều đặn. |
-| **Tài khoản Claude của bot = `ai@gwt.vn`**, tách khỏi tài khoản marketing đang đăng nhập app Claude trên Mac mini, bằng `CLAUDE_CONFIG_DIR=~/.claude-bots` (đăng nhập `/login` một lần). Cả Bắp lẫn NP khởi động với biến này | Tài liệu Claude Code ("Log in with multiple accounts"): mỗi `CLAUDE_CONFIG_DIR` có mục Keychain, settings, plugin riêng; app desktop luôn dùng `~/.claude`. Không dùng `CLAUDE_CODE_OAUTH_TOKEN` vì tài liệu không xác nhận nó chạy được với `--channels`. Plugin Discord phải cài trong `~/.claude-bots`. Keychain chỉ mở khi user macOS đang đăng nhập, nên máy phải tự đăng nhập user chạy bot. |
+| **Tài khoản Claude của bot = `ai@gwt.vn`, dùng cấu hình mặc định `~/.claude` của user `gwtai`** (không cần `CLAUDE_CONFIG_DIR`) | Đo 2026-10-05: Claude Code CLI mặc định trên Mac mini đã là `ai@gwt.vn` (trước đó `marketing@gwt.vn`, đổi khi đăng nhập lúc cài). Chủ dự án xác nhận marketing chỉ dùng app Claude để chat (đăng nhập riêng), không dùng Claude Code, nên không cần tách. Keychain chỉ mở trong phiên đăng nhập GUI: bot phải khởi động từ LaunchAgent của user `gwtai` (máy tự đăng nhập), **không** từ phiên SSH. |
 | **Hai bot một máy bằng `DISCORD_STATE_DIR` riêng** | Plugin Discord đọc biến này (`server.ts`: `STATE_DIR = process.env.DISCORD_STATE_DIR ?? ~/.claude/channels/discord`); README plugin ghi rõ đây là cách chạy nhiều bot trên một máy. Bắp giữ thư mục mặc định, NP dùng `~/.claude/channels/discord-np`. |
 | Sheet + folder Drive do **`ai@gwt.vn`** tạo | Tài khoản chung GWT. |
 | **Cột Nguồn quỹ**: chi **từ** quỹ nào, thu **vào** quỹ nào. Giá trị lấy từ **danh sách cố định** trong `config.json` (`quy`: tên chuẩn + các tên gọi tắt). **Bắt buộc** (luật 5) | Chủ dự án thêm yêu cầu 2026-10-05. Danh sách cố định thì tab Tổng hợp cộng được theo quỹ; chữ tự do thì không. |
@@ -83,7 +83,7 @@ Lệnh nào cũng ghi log một dòng: thời điểm, lệnh, msgId, kết qu�
 ## 5. Kiến trúc và dùng lại code v1
 
 ```
-Mac mini (user chạy bot, tự đăng nhập)
+Mac mini `gwtai` (tự đăng nhập; repo ở `~/Bots` — ngoài Desktop/Documents vì macOS chặn launchd/SSH đọc hai thư mục đó)
 ├─ tmux "np"  → claude --channels plugin:discord …  (DISCORD_STATE_DIR=~/.claude/channels/discord-np)
 │                 ├─ plugin Discord: nhận tin kênh NP (requireMention: false), reply/react/fetch/download_attachment
 │                 └─ MCP np-so (node mcp/np-so.mjs): kiem_tin · ghi_khoan · sua_khoan · doc_so · tin_chua_xu_ly
