@@ -12,11 +12,11 @@ Bot Discord riêng của kênh **New Projects**, chạy 24/7 trên Mac mini như
 | Phần | Vai trò |
 |---|---|
 | `luat.mjs` | Luật 1–5 + nhận nguồn quỹ (tên chuẩn + tên gọi tắt trong `config.json` `quy`) |
-| `so-core.mjs` | 5 lệnh: `kiem_tin`, `ghi_khoan`, `sua_khoan`, `doc_so`, `tin_chua_xu_ly`. Tự đọc lại tin gốc; lệch luật thì bắt buộc có tin xác nhận cùng tác giả, gửi sau; ✅ chỉ sau khi ghi |
+| `so-core.mjs` | 5 lệnh: `kiem_tin`, `ghi_khoan`, `sua_khoan`, `doc_so`, `tin_chua_xu_ly`. Tự đọc lại tin gốc; lệch luật thì bắt buộc có tin xác nhận cùng tác giả, gửi sau, **Reply** vào tin gốc hoặc câu hỏi của bot; ✅ chỉ sau khi ghi |
 | `mcp/npso.mjs` | Vỏ MCP, nối Discord REST (token ở `~/.claude/channels/discord-np/.env`), `books.mjs` (Sheet 12 cột A–L), `drive.mjs` |
 | `bot/` | Thư mục làm việc của phiên Claude bot: `CLAUDE.md` (vai trò + quy trình), `bot-settings.json` (quyền), `hooks/` |
 | `mac/` | `start-bot.sh` (tmux `np`), `watchdog.sh`, `stop-bot.sh`, `cai-launchd.sh` (`com.gwt.np.watchdog`) |
-| `scanner.mjs` | Parser v1 (171 ca test), dùng lại làm luật; CLI `--xoadong` / `--suadong` cho người quản lý |
+| `scanner.mjs` | Parser v1 (171 ca test), dùng lại làm luật; CLI `--xoadong` / `--suadong` cho người quản lý. Chạy trơn không cờ → từ chối (v2 không quét theo lịch nữa; token đọc từ `~/.claude/channels/discord-np/.env`) |
 
 Code dùng lại từ `GWT-Admin-Portal bots/xet-duyet-chi-phi@da1b637`. Bản vá bên đó **không tự sang đây**:
 `git -C ../GWT-Admin-Portal diff da1b637 HEAD -- bots/xet-duyet-chi-phi/scanner.mjs` để đối chiếu.
@@ -42,7 +42,7 @@ Code dùng lại từ `GWT-Admin-Portal bots/xet-duyet-chi-phi@da1b637`. Bản v
 hình** Mac mini (SSH không mở được Keychain), rồi khởi động lại.
 
 **Thêm quỹ:** sửa `config.json` `quy` (MCP đọc lúc khởi động → khởi động lại bot), và thêm vào dropdown cột F trên
-Sheet (Data validation).
+Sheet (Data validation). Dropdown chỉ **cảnh báo**, không chặn: quên sửa dropdown thì bot vẫn ghi được.
 
 ## Lệnh
 

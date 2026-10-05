@@ -6,6 +6,8 @@
 # Thư mục Discord RIÊNG (DISCORD_STATE_DIR): token + access.json của NP, tách hẳn ~/.claude/channels/discord của Bắp.
 DIR="${0:A:h:h}"
 source "$DIR/mac/env.sh"
+# Plugin Discord ưu tiên biến môi trường thật hơn file .env → biến sót (vd trong ~/.zshenv) sẽ đè token/access của NP.
+unset DISCORD_BOT_TOKEN DISCORD_ACCESS_MODE
 export DISCORD_STATE_DIR="$HOME/.claude/channels/discord-np"
 INBOX="$DISCORD_STATE_DIR/inbox"
 mkdir -p "$INBOX"

@@ -27,6 +27,11 @@ t("viTriMaTin: tìm dòng theo msgId ở cột L (không theo số dòng), bỏ 
   assert.equal(viTriMaTin([["Mã tin"], ["111"], [], ["222"]], "222"), 4);
   assert.equal(viTriMaTin([["Mã tin"], ["111"]], "999"), null);
 });
+t("[review M2] chữ do người gõ bắt đầu bằng = + - @ không thành công thức (USER_ENTERED)", () => {
+  const r = buildFundRow({ loai: "chi", ngay: "2026-10-05", dienGiai: "=IMPORTXML(\"http://x\")", nguoi: "+84 Lan", amount: 1, ghiChu: "@all" });
+  assert.equal(r[2], "'=IMPORTXML(\"http://x\")"); assert.equal(r[3], "'+84 Lan"); assert.equal(r[10], "'@all");
+  assert.equal(r[0], "=ROW()-1"); // công thức CỦA BOT giữ nguyên
+});
 t("laLocaleVi: chỉ nhận vi", () => {
   assert.equal(laLocaleVi("vi_VN"), true);
   assert.equal(laLocaleVi("vi"), true);

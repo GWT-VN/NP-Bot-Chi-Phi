@@ -22,6 +22,7 @@ t("_state cột D là msgId (loadProcessed đọc D2:D)", () => assert.equal(k.t
 t("dropdown Nguồn quỹ (F) theo danh sách quỹ trong config; cột Mã tin (L) ẩn", () => {
   assert.deepEqual(k.dropdownQuy, ["Quỹ công ty", "Tiền cá nhân ứng"]);
   assert.equal(k.anCot, 11);
+  assert.equal(k.dropdownChat, false, "dropdown không chặn cứng: thêm quỹ vào config trước khi sửa dropdown không được làm ghi sổ lỗi");
 });
 t("Tổng hợp: 3 bảng (tổng, theo HĐ đỏ, theo quỹ) dùng ';' và cột mới (Thu G, Chi H, HĐ E, Quỹ F)", () => {
   assert.match(k.tongHop.A2, /sum\(G\), sum\(H\), count\(H\)/);

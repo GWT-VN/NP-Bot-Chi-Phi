@@ -81,8 +81,10 @@ def main():
     tk = ra_token(client, doi_code(client, code))
     BI_MAT.mkdir(parents=True, exist_ok=True)
     tam = TOKEN_FILE.with_suffix(".tam")
-    tam.write_text(json.dumps(tk, indent=2))
-    os.chmod(tam, 0o600)
+    tam.unlink(missing_ok=True)
+    # Tạo file với quyền 600 NGAY từ đầu (write_text rồi chmod để hở refresh token ở quyền 644 một nhịp).
+    with os.fdopen(os.open(tam, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as f:
+        f.write(json.dumps(tk, indent=2))
     tam.replace(TOKEN_FILE)
     print(f"\n✅ Đã lưu {TOKEN_FILE} (Sheet + Drive). Tiếp: node setup.mjs")
 

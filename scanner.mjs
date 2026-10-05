@@ -28,6 +28,14 @@ function loadEnv() {
 }
 loadEnv();
 
+// v2: token bot NP nằm ở thư mục Discord riêng (DISCORD_STATE_DIR, mặc định ~/.claude/channels/discord-np/.env).
+if (!process.env.DISCORD_BOT_TOKEN) {
+  try {
+    const f = path.join(process.env.DISCORD_STATE_DIR || path.join(process.env.HOME || "", ".claude", "channels", "discord-np"), ".env");
+    const m = /^DISCORD_BOT_TOKEN=(.+)$/m.exec(readFileSync(f, "utf8"));
+    if (m) process.env.DISCORD_BOT_TOKEN = m[1].trim();
+  } catch {}
+}
 const TOKEN = process.env.DISCORD_BOT_TOKEN;
 let _drive = null;
 const driveOf = () => (_drive ||= drive.getDrive());
@@ -999,7 +1007,13 @@ async function requetPhase(ids) {
 // DM báo cáo làm kênh báo; NP không có DM, workflow đỏ là kênh báo lỗi DUY NHẤT.
 if (path.resolve(process.argv[1] || "") === fileURLToPath(import.meta.url)) {
   (async () => {
-    if (!TOKEN) die("Thiếu DISCORD_BOT_TOKEN");
+    // v2 KHÔNG còn quét theo lịch (bot NP ghi sổ qua MCP npso). Chạy trơn = nơi ghi thứ hai (dòng thiếu Nguồn quỹ/Mã tin,
+    // rep ⚠️ lạc) → từ chối. Chỉ còn các lệnh sửa tay cho người quản lý (review M1, 2026-10-05).
+    if (!xoaDongArg && !suaDongArg && !requetIds.length) {
+      console.error("scanner.mjs v2: chỉ còn lệnh sửa tay --xoadong / --suadong / --requet. Ghi sổ do bot NP (MCP npso) làm.");
+      process.exit(2);
+    }
+    if (!TOKEN && (suaDongArg || requetIds.length)) die("Thiếu DISCORD_BOT_TOKEN (~/.claude/channels/discord-np/.env)");
     const b = BOOKS.np, tab = b.tabs.default;
     if (!b.sheetId) die("config.json chưa có book.sheetId — chạy setup.mjs trước");
     if (!Object.keys(CHANS).length) die("config.json chưa khai kênh nào trong channels");

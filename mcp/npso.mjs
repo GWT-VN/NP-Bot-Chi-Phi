@@ -16,7 +16,7 @@ const tra = (kq) => {
   const loi = kq && typeof kq === "object" && !Array.isArray(kq) && kq.ok === false;
   return { content: [{ type: "text", text: JSON.stringify(kq, null, 1) }], ...(loi ? { isError: true } : {}) };
 };
-const boc = (fn) => async (a) => { try { return tra(await fn(a)) } catch (e) { return { content: [{ type: "text", text: `Lỗi hệ thống (chưa ghi gì): ${che(e?.message ?? e)}. Báo người gửi sẽ thử lại sau, KHÔNG đoán.` }], isError: true } } };
+const boc = (fn) => async (a) => { try { return tra(await fn(a)) } catch (e) { return { content: [{ type: "text", text: `Lỗi hệ thống: ${che(e?.message ?? e)}. Có thể đã ghi một phần — gọi kiem_tin để xem tin đã vào sổ chưa trước khi thử lại; KHÔNG đoán.` }], isError: true } } };
 
 export function taoServer(core) {
   const s = new McpServer({ name: "npso", version: "2.0.0" });
@@ -65,7 +65,8 @@ async function taiAnh(msgs) {
       const r = await fetch(a.url, { signal: AbortSignal.timeout(20_000) });
       if (!r.ok) continue;
       const buffer = Buffer.from(await r.arrayBuffer());
-      if (buffer.length > 4_500_000) continue;
+      // Drive không giới hạn cỡ như API ảnh của Claude: ảnh điện thoại 5–12MB vẫn phải lưu được chứng từ. Trần 20MB chỉ chặn file lạ.
+      if (buffer.length > 20_000_000) continue;
       out.push({ buffer, mime: (r.headers.get("content-type") || a.content_type || "image/jpeg").split(";")[0], name: a.filename || `anh-${m.id}.jpg` });
     } catch {}
   }

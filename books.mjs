@@ -90,14 +90,17 @@ const TON_FUND = `=SUM($G$2:INDEX($G:$G${ARG_SEP}ROW()))-SUM($H$2:INDEX($H:$H${A
 // Dòng thu: Hoá đơn "—" (hoá đơn đỏ chỉ có nghĩa với khoản chi).
 export const COT = { ngay: 1, dienGiai: 2, nguoi: 3, hoaDon: 4, nguonQuy: 5, thu: 6, chi: 7, ton: 8, link: 9, ghiChu: 10, maTin: 11 };
 const CHU = "ABCDEFGHIJKL";
+// Chữ do NGƯỜI gõ (diễn giải, tên, ghi chú) đi qua USER_ENTERED → "=…", "+…", "-…", "@…" sẽ bị Sheet hiểu là công thức/số
+// (vd =IMPORTXML(...) gửi dữ liệu ra ngoài). Thêm dấu ' ở đầu để Sheet coi là chữ. Công thức của BOT (STT, Tồn) không qua đây.
+const anToan = (v) => (typeof v === "string" && /^[=+\-@]/.test(v) ? `'${v}` : v);
 export function buildFundRow({ loai = "chi", ngay, dienGiai, nguoi = "", hoaDon = "Không", nguonQuy = "", amount = 0, link = "", ghiChu = "", maTin = "" }) {
   const isThu = loai === "thu";
   const hd = isThu ? "—" : (hoaDon || "Không");
   const n = Number(amount) || "";
   return [
-    "=ROW()-1", toDMY(ngay), dienGiai || "", nguoi || "", hd, nguonQuy || "",
+    "=ROW()-1", toDMY(ngay), anToan(dienGiai || ""), anToan(nguoi || ""), hd, anToan(nguonQuy || ""),
     isThu ? n : "", isThu ? "" : n,
-    TON_FUND, link || "", ghiChu || "", maTin ? String(maTin) : "",
+    TON_FUND, link || "", anToan(ghiChu || ""), maTin ? String(maTin) : "",
   ];
 }
 
@@ -242,8 +245,7 @@ export async function suaDongSo({ sheetId, tab, rowNum, expectDMY, dienGiai, ghi
   if (expectDMY && ngay !== expectDMY)
     throw new Error(`KHÔNG khớp ngày (chờ ${expectDMY}, thấy ${ngay}) tại dòng ${rowNum} → "${cu.dienGiai}". Dừng, không sửa.`);
   if (dry) return { dry: true, rowNum, cu, moi: { dienGiai, ghiChu } };
-  // Ghi 2 ô rời (C và M) — KHÔNG ghi cả dải A:M, kẻo đè mất công thức STT/Tồn quỹ và các cột người nhập tay
-  // (Đã hoàn ứng, Ngày hoàn, Link hóa đơn). RAW: chữ thuần, không cho Sheets diễn giải thành công thức/ngày.
+  // Ghi 2 ô rời (C Diễn giải và K Ghi chú) — KHÔNG ghi cả dải A:L, kẻo đè mất công thức STT/Tồn và các cột khác. RAW: chữ thuần, không cho Sheets diễn giải thành công thức/ngày.
   await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId: sheetId,
     requestBody: {

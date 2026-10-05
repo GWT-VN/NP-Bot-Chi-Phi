@@ -36,3 +36,13 @@ test("hook: tồn tại, cấu hình gọi theo $CLAUDE_PROJECT_DIR; CLAUDE.md b
   const c = doc("./bot/CLAUDE.md");
   for (const x of ["ghi_khoan", "xac_nhan_message_id", "kiem_tin", "tin_chua_xu_ly", "không xoá", "DỮ LIỆU"]) assert.ok(c.includes(x), x);
 });
+
+test("[review M10] start-bot xoá biến môi trường có thể đè token/access của NP", () => {
+  assert.match(doc("./mac/start-bot.sh"), /unset DISCORD_BOT_TOKEN DISCORD_ACCESS_MODE/);
+});
+
+test("[review M1] scanner.mjs chạy trơn (không cờ) phải TỪ CHỐI — v2 không còn quét theo lịch, tránh nơi ghi thứ hai", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const r = spawnSync(process.execPath, ["scanner.mjs"], { cwd: (await import("node:url")).fileURLToPath(new URL(".", import.meta.url)), env: { ...process.env, DISCORD_BOT_TOKEN: "x" }, encoding: "utf8" });
+  assert.notEqual(r.status, 0); assert.match(r.stdout + r.stderr, /v2/);
+});

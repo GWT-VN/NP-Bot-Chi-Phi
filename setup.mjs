@@ -2,7 +2,7 @@
 // Dựng Sheet "Sổ chi phí New Projects" + folder Drive "Chứng từ New Projects" — CHẠY 1 LẦN, bằng tài khoản ai@gwt.vn.
 //   node setup.mjs            → tạo mới, ghi sheetId/folderId vào config.json (từ chối nếu config đã có sheetId)
 //   node setup.mjs --force    → vẫn tạo mới dù config đã có (file cũ KHÔNG bị xoá — tự dọn tay trên Drive)
-// Cần credentials.json + token.json (node lib/auth.mjs) trong thư mục này. Spec §4.
+// Cần token Google của ai@gwt.vn (python3 lib/google-dang-nhap.py → ~/Bots/.secrets/np-google-token.json). Spec §4.
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -31,6 +31,8 @@ export function keHoachSo({ quy = [] } = {}) {
     ],
     // Dropdown Nguồn quỹ (F) = tên chuẩn trong config.json `quy`; cột Mã tin (L, index 11) ẩn — chỉ máy dùng.
     dropdownQuy: quy.map((q) => q.ten),
+    // KHÔNG chặn cứng: thêm quỹ vào config.json mà quên sửa dropdown thì Sheet chỉ cảnh báo, bot vẫn ghi được.
+    dropdownChat: false,
     anCot: 11,
     // Ba bảng ĐỘC LẬP (mỗi bảng tự có Năm/Tháng): ghép chung cột sẽ lệch dòng khi một tháng thiếu loại này/loại kia.
     // Cột B phải là NGÀY thật (bot ghi dd/mm/yyyy USER_ENTERED ở locale vi_VN) thì year()/month() mới chạy.
@@ -56,9 +58,9 @@ async function main() {
   const auth = getAuthClient();
   const drive = google.drive({ version: "v3", auth });
   const sheets = google.sheets({ version: "v4", auth });
-  // Chặn tạo nhầm tài khoản: token.json đăng nhập ai thì file thuộc người đó.
+  // Chặn tạo nhầm tài khoản: token đăng nhập ai thì file thuộc người đó.
   const me = (await drive.about.get({ fields: "user(emailAddress)" })).data.user?.emailAddress;
-  if (String(me).toLowerCase() !== TAI_KHOAN) throw new Error(`token.json đang là '${me}', phải là ${TAI_KHOAN} — chạy lại node lib/auth.mjs và đăng nhập đúng tài khoản.`);
+  if (String(me).toLowerCase() !== TAI_KHOAN) throw new Error(`Token Google đang là '${me}', phải là ${TAI_KHOAN} — chạy lại python3 lib/google-dang-nhap.py và đăng nhập đúng tài khoản.`);
 
   const k = keHoachSo({ quy: cfg.quy || [] });
   if (!k.dropdownQuy.length) console.warn('⚠️  config.json chưa có danh sách quỹ (quy): cột Nguồn quỹ chưa có dropdown. Có danh sách rồi thì thêm tay trên Sheet (Data → Data validation, cột F) — đừng chạy lại setup, setup luôn tạo FILE MỚI.');
@@ -72,7 +74,7 @@ async function main() {
   const data = k.tabs.filter((t) => t.header.length).map((t) => ({ range: `'${t.title}'!A1`, values: [t.header] }));
   for (const o of ["A1", "A2", "G1", "G2", "M1", "M2"]) data.push({ range: `'Tổng hợp'!${o}`, values: [[k.tongHop[o]]] });
   await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: sheetId, requestBody: { valueInputOption: "USER_ENTERED", data } });
-  // Định dạng: tiêu đề sổ in đậm; Thu/Chi/Tồn (F:H) số có ngăn nghìn.
+  // Định dạng: tiêu đề sổ in đậm; Thu/Chi/Tồn (G:I) số có ngăn nghìn.
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: sheetId,
     requestBody: { requests: [
@@ -80,7 +82,7 @@ async function main() {
       { repeatCell: { range: { sheetId: 0, startRowIndex: 1, startColumnIndex: 6, endColumnIndex: 9 }, cell: { userEnteredFormat: { numberFormat: { type: "NUMBER", pattern: "#,##0" } } }, fields: "userEnteredFormat.numberFormat" } },
       { updateDimensionProperties: { range: { sheetId: 0, dimension: "COLUMNS", startIndex: k.anCot, endIndex: k.anCot + 1 }, properties: { hiddenByUser: true }, fields: "hiddenByUser" } },
       ...(k.dropdownQuy.length ? [{ setDataValidation: { range: { sheetId: 0, startRowIndex: 1, startColumnIndex: 5, endColumnIndex: 6 },
-        rule: { condition: { type: "ONE_OF_LIST", values: k.dropdownQuy.map((v) => ({ userEnteredValue: v })) }, strict: true, showCustomUi: true } } }] : []),
+        rule: { condition: { type: "ONE_OF_LIST", values: k.dropdownQuy.map((v) => ({ userEnteredValue: v })) }, strict: k.dropdownChat, showCustomUi: true } } }] : []),
     ] },
   });
   const { folderId, link } = await createFolder(k.folderName, null);

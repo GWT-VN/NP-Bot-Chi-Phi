@@ -25,13 +25,22 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     return { m };
   }
 
+  // Xác nhận phải GẮN với đúng khoản (review C1, 2026-10-05): là Discord REPLY vào tin gốc, hoặc reply vào câu hỏi của
+  // BOT mà câu hỏi đó reply tin gốc. "Tin bất kỳ của người gửi, gửi sau" là KHÔNG đủ: một chữ "đúng" sẽ bị dùng cho
+  // nhiều khoản, và Claude bị dụ có thể gán số tuỳ ý cho tin trò chuyện. Reply trỏ đúng 1 tin → không dùng lại được.
   async function xacNhanHopLe(chat_id, goc, xnId, viec) {
-    if (!xnId) return { loi: `cần tin xác nhận của người gửi trước khi ${viec}` };
+    if (!xnId) return { loi: `cần tin xác nhận của người gửi (Reply vào tin gốc hoặc vào câu hỏi của bot) trước khi ${viec}` };
     const xn = await discord.layTin(String(chat_id), String(xnId));
     if (!xn) return { loi: `không thấy tin xác nhận ${xnId} trong kênh` };
     if (xn.author?.bot || String(xn.author?.id) !== String(goc.author?.id)) return { loi: "tin xác nhận phải của CHÍNH người gửi khoản" };
     if (!sau(xn.id, goc.id)) return { loi: "tin xác nhận phải gửi SAU tin gốc" };
-    return { xn };
+    const ref = xn.message_reference?.type === 1 ? null : xn.message_reference?.message_id; // type 1 = forward, không phải reply
+    if (ref && String(ref) === String(goc.id)) return { xn };
+    if (ref) {
+      const hoi = await discord.layTin(String(chat_id), String(ref));
+      if (hoi?.author?.bot && String(hoi.message_reference?.message_id) === String(goc.id)) return { xn };
+    }
+    return { loi: "tin xác nhận phải là Reply (trả lời) vào tin gốc, hoặc vào câu hỏi của bot về đúng khoản này — nhờ người gửi bấm Reply" };
   }
 
   function kiemGiaTri({ loai, so_tien, hoa_don, nguon_quy }, { batBuoc = true } = {}) {
@@ -49,14 +58,24 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     return { ok: true, da_ghi: daGhi, tac_gia: ND(m), danh_sach_quy: [...quyTen], ...kiemLuat(m, cfg) };
   }
 
+  // Khoá theo tin (review I1): hai lời gọi cùng tin chạy song song (Claude gọi lặp, quét bù trùng tin trực tiếp) mà cùng
+  // qua bước kiểm _state thì ghi 2 dòng. Một tiến trình MCP / phiên → Set trong bộ nhớ là đủ.
+  const dangGhi = new Set();
   async function ghiKhoan(a) {
+    const k = `${a.chat_id}/${a.message_id}`;
+    if (dangGhi.has(k)) return tuChoi("tin này đang được ghi ở lời gọi khác — chờ kết quả, đừng gọi lại");
+    dangGhi.add(k);
+    try { return await ghiKhoanTho(a) } finally { dangGhi.delete(k) }
+  }
+  async function ghiKhoanTho(a) {
     const { m, loi } = await tinGoc(a.chat_id, a.message_id);
     if (loi) return tuChoi(loi);
     if ((await so.loadProcessed()).has(String(m.id))) return tuChoi("tin này đã ghi sổ rồi — muốn sửa thì dùng sua_khoan");
     const sai = kiemGiaTri(a);
     if (sai) return tuChoi(sai);
     const luat = kiemLuat(m, cfg);
-    if (luat.bo_qua && /ghi chú có chủ đích/.test(luat.ly_do || "")) return tuChoi("tin này người gửi ghi rõ là ghi chú / không ghi sổ");
+    // Mọi tin bo_qua (ghi chú, "không ghi sổ", trò chuyện) đều KHÔNG ghi được, kể cả có xác nhận (review C1).
+    if (luat.bo_qua) return tuChoi(`tin này không phải một khoản (${luat.ly_do || "ghi chú / trò chuyện"}) — khoản mới thì người gửi nhắn tin mới`);
     const khop = luat.dung_luat && luat.loai === a.loai && luat.so_tien === a.so_tien && luat.hoa_don === a.hoa_don && luat.nguon_quy === a.nguon_quy;
     let xn = null;
     if (!khop) {
@@ -64,15 +83,25 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
       if (r.loi) return tuChoi(r.loi, { thieu: luat.thieu || [], luat_doc_duoc: { loai: luat.loai, so_tien: luat.so_tien, hoa_don: luat.hoa_don, nguon_quy: luat.nguon_quy } });
       xn = r.xn;
     }
+    // Dòng đã nằm trong sổ (lần trước ghi dòng xong mà ghi _state lỗi) → KHÔNG thêm dòng, chỉ bù _state (review I1).
+    if (so.timDong && await so.timDong(String(m.id))) {
+      await so.commit({ rows: [], msgIds: [String(m.id)] });
+      try { await discord.react(String(a.chat_id), String(m.id), "✅") } catch {}
+      try { await discord.unreact(String(a.chat_id), String(m.id), "❓") } catch {}
+      return { ok: true, da_ghi: "khoản này đã có trong sổ từ lần trước — chỉ bù đánh dấu", canh_bao: [] };
+    }
     const coAnh = luat.co_anh || (xn?.attachments || []).length > 0;
-    const ghiChu = [a.ghi_chu || luat.ghi_chu || "", !coAnh ? "không có ảnh chứng từ (đã xác nhận)" : "", xn ? `đã xác nhận: ${link(a.chat_id, xn.id)}` : ""].filter(Boolean).join("; ");
     const ngay = luat.ngay || toDMY(ngayVN(m.timestamp));
+    const dau = [];
     let anh = "";
-    try { anh = await drive.luuAnh({ msgs: [m, xn].filter(Boolean), loai: a.loai, ngay, noiDung: a.noi_dung }) } catch {}
+    try { anh = await drive.luuAnh({ msgs: [m, xn].filter(Boolean), loai: a.loai, ngay, noiDung: a.noi_dung }) } catch (e) { dau.push(`chưa lưu được ảnh chứng từ lên Drive (${String(e?.message ?? e).slice(0, 80)})`) }
+    // Có ảnh mà không ra link (lỗi Drive / ảnh quá lớn / tải hỏng) → phải để lại dấu trong sổ, không im lặng (review I3).
+    if (coAnh && !anh && !dau.length) dau.push("chưa lưu được ảnh chứng từ lên Drive");
+    const ghiChu = [a.ghi_chu || luat.ghi_chu || "", !coAnh ? "không có ảnh chứng từ (đã xác nhận)" : "", coAnh && !anh ? "chưa lưu được ảnh chứng từ" : "",
+      xn ? `đã xác nhận: ${link(a.chat_id, xn.id)}` : ""].filter(Boolean).join("; ");
     const row = buildFundRow({ loai: a.loai, ngay: dmyIso(ngay) || ngay, dienGiai: a.noi_dung, nguoi: ND(m), hoaDon: a.hoa_don,
       nguonQuy: a.nguon_quy, amount: a.so_tien, link: anh, ghiChu, maTin: m.id });
     await so.commit({ rows: [row], msgIds: [String(m.id)] }); // lỗi → ném lên, KHÔNG ✅
-    const dau = [];
     try { await discord.react(String(a.chat_id), String(m.id), "✅") } catch (e) { dau.push(`không thả được ✅: ${e.message}`) }
     try { await discord.unreact(String(a.chat_id), String(m.id), "❓") } catch {}
     return { ok: true, da_ghi: `${a.loai.toUpperCase()} ${a.so_tien.toLocaleString("vi-VN")}đ · ${a.nguon_quy} · HĐ ${a.hoa_don} · ${a.noi_dung}`, link_anh: anh || null, canh_bao: dau };
@@ -104,19 +133,32 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
       dong: rows.slice(-200).map(({ dong, ngay, dienGiai, nguonQuy, hoaDon, thu, chi }) => ({ dong, ngay, dienGiai, nguonQuy, hoaDon, thu, chi })) };
   }
 
+  // Quét bù lúc khởi động (review I2): phiên mới không nhớ câu hỏi đang chờ → trả CẢ `dang_cho` (tin có ❓ của bot) kèm các
+  // câu trả lời (Reply) của chính người gửi, để Claude ghi tiếp; tin Reply KHÔNG bao giờ bị coi là khoản mới.
   async function tinChuaXuLy() {
     const daGhi = await so.loadProcessed();
-    const tu = now() - 7 * 86400e3, ra = [];
+    const tu = now() - 7 * 86400e3, moi = [], dangCho = [];
+    const daCo = (m, e) => (m.reactions || []).some((r) => r.me && r.emoji?.name === e);
+    const refCua = (m) => (m.message_reference?.type === 1 ? null : m.message_reference?.message_id ? String(m.message_reference.message_id) : null);
     for (const ch of Object.keys(cfg.channels || {})) {
-      for (const m of await discord.layTinKenh(ch, tu)) {
-        if (m.author?.bot || m.pinned || daGhi.has(String(m.id))) continue;
-        if ((m.reactions || []).some((r) => r.me && ["❓", "✅"].includes(r.emoji?.name))) continue;
+      const ds = await discord.layTinKenh(ch, tu);
+      const hoiVe = new Map(ds.filter((m) => m.author?.bot && refCua(m)).map((m) => [String(m.id), refCua(m)])); // câu hỏi bot → tin gốc
+      for (const m of ds) {
+        if (m.author?.bot || m.pinned || daGhi.has(String(m.id)) || refCua(m) || daCo(m, "✅")) continue;
+        if (daCo(m, "❓")) {
+          const traLoi = ds.filter((x) => !x.author?.bot && String(x.author?.id) === String(m.author?.id) && refCua(x)
+            && (refCua(x) === String(m.id) || hoiVe.get(refCua(x)) === String(m.id)))
+            .map((x) => ({ message_id: String(x.id), noi_dung: String(x.content || "").slice(0, 200) }))
+          dangCho.push({ chat_id: ch, message_id: String(m.id), tac_gia: ND(m), noi_dung: String(m.content || "").slice(0, 200), tra_loi: traLoi });
+          continue;
+        }
         const l = kiemLuat(m, cfg);
         if (l.bo_qua) continue;
-        ra.push({ chat_id: ch, message_id: String(m.id), tac_gia: ND(m), noi_dung: String(m.content || "").slice(0, 200), dung_luat: l.dung_luat, thieu: l.thieu });
+        moi.push({ chat_id: ch, message_id: String(m.id), tac_gia: ND(m), noi_dung: String(m.content || "").slice(0, 200), dung_luat: l.dung_luat, thieu: l.thieu });
       }
     }
-    return ra.sort((a, b) => (BigInt(a.message_id) < BigInt(b.message_id) ? -1 : 1));
+    const xep = (a, b) => (BigInt(a.message_id) < BigInt(b.message_id) ? -1 : 1);
+    return { moi: moi.sort(xep), dang_cho: dangCho.sort(xep) };
   }
 
   return { kiemTin, ghiKhoan, suaKhoan, docSo, tinChuaXuLy };

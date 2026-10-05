@@ -20,7 +20,7 @@ thu Hoàn tiền cọc 2tr vào quỹ công ty                                  
 | | Nghĩa | Làm gì |
 |---|---|---|
 | ✅ | Đã ghi sổ | Không cần làm gì |
-| ❓ + câu hỏi | Tin còn thiếu hoặc chưa rõ (thiếu quỹ, thiếu `chi`, hoá đơn lấp lửng, số tiền chỉ có trong ảnh…) | **Trả lời câu hỏi của bot** ("đúng", "735k", "quỹ công ty", "không có bill"…). Bot ghi xong sẽ báo |
+| ❓ + câu hỏi | Tin còn thiếu hoặc chưa rõ (thiếu quỹ, thiếu `chi`, hoá đơn lấp lửng, số tiền chỉ có trong ảnh…) | Bấm **Trả lời (Reply)** vào câu hỏi của bot rồi gõ ("đúng", "735k", "quỹ công ty", "không có bill"…). **Phải bấm Reply**, nhắn rời bot không biết bạn đang trả lời khoản nào. Chỉ chính người gửi khoản đó trả lời mới tính. Bot ghi xong sẽ báo |
 
 - Chỉ **chính người gửi khoản** trả lời mới được tính. Người khác trả lời hộ thì bot hỏi lại.
 - **Sửa khoản đã ✅**: nhắn "sửa lại 735k", "nhầm quỹ, là tiền cá nhân ứng"… (người gửi khoản đó nhắn).
