@@ -1,59 +1,53 @@
-# NP Bot Chi Phí
+# NP Bot Chi Phí (v2)
 
-Bot Discord riêng cho kênh **New Projects**: đọc tin thu/chi kèm ảnh, ghi vào Google Sheet "Sổ chi phí New
-Projects" (của `ai@gwt.vn`), lưu ảnh chứng từ lên Drive, thả ✅/⚠️/📷/⌛. Chạy GitHub Actions 11:00 · 15:00 · 20:30.
+Bot Discord riêng của kênh **New Projects**, chạy 24/7 trên Mac mini như Bắp (Claude Code + plugin Discord). Claude
+đọc tin, hỏi lại khi thiếu hoặc chưa rõ, trả lời câu hỏi về sổ. **Ghi sổ chỉ đi qua MCP `npso`**, và MCP này ép luật
+1–5 cùng điều kiện "chính người gửi xác nhận". Không có lệnh xoá.
 
 - Spec (vì sao làm thế này): `docs/superpowers/specs/2026-10-05-np-bot-chi-phi-design.md`
-- Cách gửi tin (ghim lên kênh): `HUONG-DAN-NHAN-TIN.md`
+- Plan v2: `docs/superpowers/plans/2026-10-05-np-bot-v2.md` · Bản ghim kênh: `HUONG-DAN-NHAN-TIN.md`
 
-## Nguồn gốc — đọc trước khi vá parser
+## Cấu trúc
 
-Chép rút gọn từ `GWT-Admin-Portal` **`bots/xet-duyet-chi-phi` @ `da1b637`**, chỉ giữ luồng tiền tố thu/chi (kênh chị
-Trang). Tên hàm và cấu trúc giữ nguyên **cố ý** để đối chiếu bản vá:
-
-```bash
-git -C ../GWT-Admin-Portal diff da1b637 HEAD -- bots/xet-duyet-chi-phi/scanner.mjs
-```
-
-Lệnh này cho thấy bên Sổ quỹ đã vá gì kể từ lúc chép. Bản vá **không tự sang đây** và ngược lại. Đó là cái giá đã
-chấp nhận khi tách repo, vì chủ dự án muốn sổ này không lẫn vào Admin Portal.
-
-Khác bản gốc (có chủ đích):
-
-- 1 sổ 1 tab, 10 cột: bỏ hoàn ứng, bỏ chọn quỹ (`detectQuy`), bỏ "người thanh toán reply ảnh".
-- Không Supabase, không mirror, không DM báo cáo.
-- **Lỗi làm workflow ĐỎ.** Bản gốc nuốt lỗi đọc kênh vì còn DM báo cáo làm kênh báo. Ở đây không có DM, nên email
-  "workflow failed" của GitHub là kênh báo lỗi duy nhất. Hãy **watch repo** để nhận email.
-- Dừng khi chưa bật Message Content Intent, hoặc khi Sheet không ở locale vi_VN.
-
-## Secret (Settings → Secrets → Actions)
-
-| Secret | Lấy ở đâu |
+| Phần | Vai trò |
 |---|---|
-| `DISCORD_BOT_TOKEN` | Bot riêng "NP Chi Phí" (Developer Portal → Bot). Phải bật **Message Content Intent** |
-| `GOOGLE_OAUTH_CREDENTIALS_JSON` | Nội dung `credentials.json`: OAuth client "Desktop app" của dự án Google Cloud mà bot Sổ quỹ đang dùng |
-| `GOOGLE_OAUTH_TOKEN_JSON` | Nội dung `token.json` sau khi chạy `node lib/auth.mjs` và đăng nhập **ai@gwt.vn** |
+| `luat.mjs` | Luật 1–5 + nhận nguồn quỹ (tên chuẩn + tên gọi tắt trong `config.json` `quy`) |
+| `so-core.mjs` | 5 lệnh: `kiem_tin`, `ghi_khoan`, `sua_khoan`, `doc_so`, `tin_chua_xu_ly`. Tự đọc lại tin gốc; lệch luật thì bắt buộc có tin xác nhận cùng tác giả, gửi sau; ✅ chỉ sau khi ghi |
+| `mcp/npso.mjs` | Vỏ MCP, nối Discord REST (token ở `~/.claude/channels/discord-np/.env`), `books.mjs` (Sheet 12 cột A–L), `drive.mjs` |
+| `bot/` | Thư mục làm việc của phiên Claude bot: `CLAUDE.md` (vai trò + quy trình), `bot-settings.json` (quyền), `hooks/` |
+| `mac/` | `start-bot.sh` (tmux `np`), `watchdog.sh`, `stop-bot.sh`, `cai-launchd.sh` (`com.gwt.np.watchdog`) |
+| `scanner.mjs` | Parser v1 (171 ca test), dùng lại làm luật; CLI `--xoadong` / `--suadong` cho người quản lý |
 
-Hai bot dùng chung OAuth client nhưng mỗi bot có refresh token riêng. Consent screen phải ở chế độ **Internal/Production**.
-Để ở Testing thì token hết hạn sau 7 ngày, và cả hai bot cùng ngừng ghi.
+Code dùng lại từ `GWT-Admin-Portal bots/xet-duyet-chi-phi@da1b637`. Bản vá bên đó **không tự sang đây**:
+`git -C ../GWT-Admin-Portal diff da1b637 HEAD -- bots/xet-duyet-chi-phi/scanner.mjs` để đối chiếu.
+
+## Vận hành trên Mac mini (`~/Bots/NP-Bot-Chi-Phi`)
+
+**Cài lần đầu** (các bước dính tài khoản hoặc bí mật do chủ dự án làm):
+1. Discord Developer Portal: tạo app **NP Chi Phí**, bật **Message Content Intent**, mời vào server, chỉ cấp quyền ở
+   kênh NP (View, Read History, Send, Add Reactions).
+2. Token: `mkdir -p ~/.claude/channels/discord-np && read -rs "T?Token: " && print -r "DISCORD_BOT_TOKEN=$T" > ~/.claude/channels/discord-np/.env && chmod 600 ~/.claude/channels/discord-np/.env; unset T`.
+3. `~/.claude/channels/discord-np/access.json`:
+   `{"dmPolicy":"allowlist","allowFrom":[],"groups":{"<kênh NP>":{"requireMention":false,"allowFrom":[]}}}`.
+   **Không** dùng `dmPolicy: "disabled"`: plugin hiểu là bỏ mọi tin.
+4. Google: `/usr/bin/python3 lib/google-dang-nhap.py` (dùng client `~/Bots/.secrets/google-client.json`, đăng nhập
+   **ai@gwt.vn**; token Sheet + Drive ở `~/Bots/.secrets/np-google-token.json`).
+5. `config.json`: điền `channels` (kênh NP) và `quy` (tên chuẩn + tên gọi tắt); rồi `node setup.mjs` (tạo Sheet +
+   folder Drive, ghi sheetId/folderId).
+6. `npm ci && npm test`, rồi `zsh mac/cai-launchd.sh`. Lần đầu `tmux attach -t np`, chọn "Yes, I trust this folder",
+   **Ctrl+B rồi D** để thoát.
+
+**Hằng ngày:** `tmux attach -t np` để xem; `zsh mac/stop-bot.sh` để tắt hẳn; khởi động lại bằng
+`tmux kill-session -t np && launchctl kickstart gui/$(id -u)/com.gwt.np.watchdog`. Code mới: `git pull` **trên màn
+hình** Mac mini (SSH không mở được Keychain), rồi khởi động lại.
+
+**Thêm quỹ:** sửa `config.json` `quy` (MCP đọc lúc khởi động → khởi động lại bot), và thêm vào dropdown cột F trên
+Sheet (Data validation).
 
 ## Lệnh
 
 ```bash
-npm test                                             # test offline
-node setup.mjs                                       # 1 lần: tạo Sheet + folder, ghi id vào config.json
-node scanner.mjs --dry                               # xem trước, không ghi / react / lưu Drive
-node scanner.mjs                                     # chạy thật
-node scanner.mjs --requet=<msgId|link>               # chấm lại 1 tin theo luật hiện tại
-node scanner.mjs --xoadong=<dòng>:<sốtiền>[:<dd/mm/yyyy>] [--dry]   # xoá dòng ghi nhầm (đối chiếu số tiền)
-node scanner.mjs --suadong=<dòng>:<msgId> [--dry]   # ghi lại Diễn giải + Ghi chú từ tin gốc
+npm test                                            # toàn bộ test (offline)
+node scanner.mjs --xoadong=<dòng>:<sốtiền>[:<dd/mm/yyyy>] [--dry]
+node scanner.mjs --suadong=<dòng>:<msgId> [--dry]
 ```
-
-Chạy tay trên Actions: tab Actions → "Sổ chi phí New Projects" → Run workflow, điền `args`. Lưu ý `--xoadong`/
-`--suadong` không được có dấu cách.
-
-## Thêm kênh / đổi tên người
-
-- `config.json` → `channels`: `{ "<channelId>": { "name": "…" } }`. Bot phải được mời vào kênh với quyền View Channel,
-  Read Message History, Send Messages, Add Reactions.
-- `config.json` → `persons`: `{ "<userId>": "Tên" }` để cột Người hiện tên cố định thay vì tên Discord.
