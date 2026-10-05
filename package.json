@@ -8,9 +8,11 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node test-parser.mjs && node test-books.mjs && node test-setup.mjs && node test-loi.mjs && node test-luat.mjs && node test-so-core.mjs"
+    "test": "node test-parser.mjs && node test-books.mjs && node test-setup.mjs && node test-loi.mjs && node test-luat.mjs && node test-so-core.mjs && node test-mcp.mjs && node test-auth.mjs"
   },
   "dependencies": {
-    "googleapis": "^144.0.0"
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "googleapis": "^144.0.0",
+    "zod": "^4.6.5"
   }
 }
