@@ -12,6 +12,12 @@ const dmyIso = (s) => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(s ||
 
 export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
   const quyTen = new Set((cfg.quy || []).map((q) => q.ten));
+  // Chưa có danh sách quỹ → quỹ KHÔNG bắt buộc (Dũng chốt 2026-10-05). Có ghi quỹ thì chữ đó phải nằm trong tin của người
+  // gửi (gốc hoặc xác nhận/yêu cầu sửa) — Claude không được tự đặt tên quỹ.
+  const batBuocQuy = quyTen.size > 0;
+  const chuan = (s) => String(s ?? "").normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
+  const coTrongTin = (ten, ...ms) => ms.some((x) => x && chuan(x.content).includes(chuan(ten)));
+  const quyLa = (ten) => `tên quỹ "${ten}" không có trong tin của người gửi — chỉ ghi quỹ đúng chữ người gửi gõ; không rõ thì để trống nguon_quy`;
   const link = (ch, id) => `https://discord.com/channels/${cfg.guildId || "@me"}/${ch}/${id}`;
   const kenhHopLe = (ch) => Object.prototype.hasOwnProperty.call(cfg.channels || {}, String(ch));
   const tuChoi = (ly_do, them = {}) => ({ ok: false, ly_do, ...them });
@@ -47,6 +53,7 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     if ((batBuoc || loai !== undefined) && !["thu", "chi"].includes(loai)) return "loai phải là thu hoặc chi";
     if ((batBuoc || so_tien !== undefined) && !(Number.isInteger(so_tien) && so_tien > 0 && so_tien <= TRAN)) return "so_tien phải là số nguyên dương ≤ 10 tỷ (VND)";
     if ((batBuoc || hoa_don !== undefined) && !["Có", "Không"].includes(hoa_don)) return "hoa_don phải là Có hoặc Không";
+    if (!batBuocQuy) { if (nguon_quy !== undefined && (typeof nguon_quy !== "string" || nguon_quy.length > 60)) return "nguon_quy phải là chữ ≤ 60 ký tự"; return null }
     if ((batBuoc || nguon_quy !== undefined) && !quyTen.has(nguon_quy)) return `nguon_quy "${nguon_quy}" không có trong danh sách quỹ (${[...quyTen].join(", ") || "chưa khai"}) — người quản lý thêm vào config.json trước`;
     return null;
   }
@@ -55,7 +62,7 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     const { m, loi } = await tinGoc(chat_id, message_id);
     if (loi) return tuChoi(loi);
     const daGhi = (await so.loadProcessed()).has(String(m.id));
-    return { ok: true, da_ghi: daGhi, tac_gia: ND(m), danh_sach_quy: [...quyTen], ...kiemLuat(m, cfg) };
+    return { ok: true, da_ghi: daGhi, tac_gia: ND(m), danh_sach_quy: [...quyTen], quy_bat_buoc: batBuocQuy, ...kiemLuat(m, cfg) };
   }
 
   // Khoá theo tin (review I1): hai lời gọi cùng tin chạy song song (Claude gọi lặp, quét bù trùng tin trực tiếp) mà cùng
@@ -76,12 +83,16 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     const luat = kiemLuat(m, cfg);
     // Mọi tin bo_qua (ghi chú, "không ghi sổ", trò chuyện) đều KHÔNG ghi được, kể cả có xác nhận (review C1).
     if (luat.bo_qua) return tuChoi(`tin này không phải một khoản (${luat.ly_do || "ghi chú / trò chuyện"}) — khoản mới thì người gửi nhắn tin mới`);
-    const khop = luat.dung_luat && luat.loai === a.loai && luat.so_tien === a.so_tien && luat.hoa_don === a.hoa_don && luat.nguon_quy === a.nguon_quy;
+    const quyTrongGoc = batBuocQuy || !a.nguon_quy || coTrongTin(a.nguon_quy, m);
+    const khop = luat.dung_luat && luat.loai === a.loai && luat.so_tien === a.so_tien && luat.hoa_don === a.hoa_don &&
+      (batBuocQuy ? luat.nguon_quy === a.nguon_quy : quyTrongGoc);
     let xn = null;
     if (!khop) {
+      if (!quyTrongGoc && !a.xac_nhan_message_id) return tuChoi(quyLa(a.nguon_quy));
       const r = await xacNhanHopLe(a.chat_id, m, a.xac_nhan_message_id, "ghi");
       if (r.loi) return tuChoi(r.loi, { thieu: luat.thieu || [], luat_doc_duoc: { loai: luat.loai, so_tien: luat.so_tien, hoa_don: luat.hoa_don, nguon_quy: luat.nguon_quy } });
       xn = r.xn;
+      if (!quyTrongGoc && !coTrongTin(a.nguon_quy, xn)) return tuChoi(quyLa(a.nguon_quy));
     }
     // Dòng đã nằm trong sổ (lần trước ghi dòng xong mà ghi _state lỗi) → KHÔNG thêm dòng, chỉ bù _state (review I1).
     if (so.timDong && await so.timDong(String(m.id))) {
@@ -100,11 +111,11 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     const ghiChu = [a.ghi_chu || luat.ghi_chu || "", !coAnh ? "không có ảnh chứng từ (đã xác nhận)" : "", coAnh && !anh ? "chưa lưu được ảnh chứng từ" : "",
       xn ? `đã xác nhận: ${link(a.chat_id, xn.id)}` : ""].filter(Boolean).join("; ");
     const row = buildFundRow({ loai: a.loai, ngay: dmyIso(ngay) || ngay, dienGiai: a.noi_dung, nguoi: ND(m), hoaDon: a.hoa_don,
-      nguonQuy: a.nguon_quy, amount: a.so_tien, link: anh, ghiChu, maTin: m.id });
+      nguonQuy: a.nguon_quy || "", amount: a.so_tien, link: anh, ghiChu, maTin: m.id });
     await so.commit({ rows: [row], msgIds: [String(m.id)] }); // lỗi → ném lên, KHÔNG ✅
     try { await discord.react(String(a.chat_id), String(m.id), "✅") } catch (e) { dau.push(`không thả được ✅: ${e.message}`) }
     try { await discord.unreact(String(a.chat_id), String(m.id), "❓") } catch {}
-    return { ok: true, da_ghi: `${a.loai.toUpperCase()} ${a.so_tien.toLocaleString("vi-VN")}đ · ${a.nguon_quy} · HĐ ${a.hoa_don} · ${a.noi_dung}`, link_anh: anh || null, canh_bao: dau };
+    return { ok: true, da_ghi: `${a.loai.toUpperCase()} ${a.so_tien.toLocaleString("vi-VN")}đ · ${a.nguon_quy || "chưa ghi quỹ"} · HĐ ${a.hoa_don} · ${a.noi_dung}`, link_anh: anh || null, canh_bao: dau };
   }
 
   async function suaKhoan(a) {
@@ -114,6 +125,7 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     if (r.loi) return tuChoi(r.loi.replace("xác nhận", "yêu cầu sửa"));
     const sai = kiemGiaTri(a, { batBuoc: false });
     if (sai) return tuChoi(sai);
+    if (!batBuocQuy && a.nguon_quy && !coTrongTin(a.nguon_quy, r.xn, m)) return tuChoi(quyLa(a.nguon_quy));
     if ((a.so_tien === undefined) !== (a.loai === undefined)) return tuChoi("sửa số tiền phải kèm cả loai lẫn so_tien");
     const dong = await so.timDong(String(m.id));
     if (!dong) return tuChoi("khoản này chưa ghi sổ (không thấy Mã tin) — dùng ghi_khoan");

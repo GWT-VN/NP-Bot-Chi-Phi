@@ -41,6 +41,9 @@ Code dùng lại từ `GWT-Admin-Portal bots/xet-duyet-chi-phi@da1b637`. Bản v
 `tmux kill-session -t np && launchctl kickstart gui/$(id -u)/com.gwt.np.watchdog`. Code mới: `git pull` **trên màn
 hình** Mac mini (SSH không mở được Keychain), rồi khởi động lại.
 
+**Quỹ chưa chốt (`quy: []`):** luật 5 tắt. Quỹ không bắt buộc; có nhắc thì ghi đúng chữ người gõ (lõi kiểm chữ đó nằm trong
+tin, để Claude không bịa tên). Chốt danh sách thì điền `quy` → luật 5 bật lại, quỹ bắt buộc và phải đúng danh sách.
+
 **Thêm quỹ:** sửa `config.json` `quy` (MCP đọc lúc khởi động → khởi động lại bot), và thêm vào dropdown cột F trên
 Sheet (Data validation). Dropdown chỉ **cảnh báo**, không chặn: quên sửa dropdown thì bot vẫn ghi được.
 

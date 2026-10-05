@@ -43,7 +43,8 @@ export function kiemLuat(msg, { quy = [], channels = {} } = {}) {
   }
   const coAnh = !!item.hasDirectImg
   if (!coAnh) thieu.push("anh")
-  const q = nhanQuy(item.content, quy)
+  // Chưa có danh sách quỹ (config `quy: []`) → luật 5 TẮT, quỹ không bắt buộc (Dũng chốt 2026-10-05: tên quỹ làm sau).
+  const q = quy.length ? nhanQuy(item.content, quy) : { quy: "", soQuy: 1 }
   if (q.soQuy === 0) thieu.push("quy")
   if (q.soQuy > 1) thieu.push("quy_mo_ho")
   return {

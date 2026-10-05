@@ -13,7 +13,7 @@ thu Hoàn tiền cọc 2tr vào quỹ công ty                                  
 2. **Số tiền**: `350.000đ`, `500k`, `1tr5`. Nhiều phần thì thêm `tổng <số>`.
 3. **Ảnh bill** trong cùng tin.
 4. **Hoá đơn đỏ**: có thì ghi `có hoá đơn đỏ`, không ghi gì thì bot hiểu là **không có**.
-5. **Nguồn quỹ**: chi TỪ quỹ nào, thu VÀO quỹ nào (tên quỹ hoặc tên gọi tắt quen dùng).
+5. **Nguồn quỹ** (nên ghi, hiện chưa bắt buộc): chi TỪ quỹ nào, thu VÀO quỹ nào. Bot ghi đúng chữ bạn gõ, nên gõ tên quỹ thống nhất.
 
 **Bot phản hồi:**
 

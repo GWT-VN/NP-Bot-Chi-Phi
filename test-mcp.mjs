@@ -27,6 +27,9 @@ test("ghi_khoan bị từ chối → isError, có lý do để Claude hỏi lạ
 test("lỗi hạ tầng (Sheets) → isError, không lộ token", async () => {
   const c = await noi({ ghiKhoan: async () => { throw new Error("Sheets 503 https://x?access_token=SECRET9") } })
   const r = await c.callTool({ name: "ghi_khoan", arguments: { chat_id: "1500000000000000900", message_id: "1500000000000000100", loai: "chi", so_tien: 1000, noi_dung: "x", hoa_don: "Không", nguon_quy: "Q" } })
+  // nguon_quy được bỏ trống (chưa có danh sách quỹ) — schema không được chặn trước khi tới lõi
+  const r2 = await c.callTool({ name: "ghi_khoan", arguments: { chat_id: "1500000000000000900", message_id: "1500000000000000100", loai: "chi", so_tien: 1000, noi_dung: "x", hoa_don: "Không" } })
+  assert.doesNotMatch(r2.content[0].text, /nguon_quy/)
   assert.equal(r.isError, true); assert.ok(!r.content[0].text.includes("SECRET9"))
 })
 

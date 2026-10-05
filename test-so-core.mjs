@@ -10,10 +10,10 @@ const ANH = [{ url: "u", filename: "bill.jpg", content_type: "image/jpeg" }];
 const msg = (id, content, o = {}) => ({ id, channel_id: KENH, content, timestamp: "2026-10-05T03:00:00.000Z",
   author: { id: "77", username: "lan", global_name: "Lan" }, attachments: ANH, reactions: [], ...o });
 
-function dung(tins, { daGhi = [], dongTheoMa = {}, loiState = false } = {}) {
+function dung(tins, { daGhi = [], dongTheoMa = {}, loiState = false, cfg = CFG } = {}) {
   const ghi = [], react = [], unreact = [], sua = [], anh = []
   const kho = Object.fromEntries(tins.map((m) => [`${m.channel_id}/${m.id}`, m]))
-  const so = taoSo({ cfg: CFG, now: () => Date.parse("2026-10-05T05:00:00Z"),
+  const so = taoSo({ cfg, now: () => Date.parse("2026-10-05T05:00:00Z"),
     discord: { layTin: async (ch, id) => kho[`${ch}/${id}`] || null, layTinKenh: async (ch) => tins.filter((m) => m.channel_id === ch),
       react: async (...a) => react.push(a), unreact: async (...a) => unreact.push(a) },
     so: { loadProcessed: async () => { if (loiState) throw new Error("Sheets 503"); return new Set(daGhi) },
@@ -206,4 +206,41 @@ test("[I2] tin_chua_xu_ly: trả 'dang_cho' kèm câu trả lời của người
   assert.deepEqual(r.moi.map((x) => x.message_id), ["106"])
   assert.equal(r.dang_cho.length, 1); assert.equal(r.dang_cho[0].message_id, "100")
   assert.deepEqual(r.dang_cho[0].tra_loi.map((x) => x.message_id), ["105"])
+})
+
+// Chưa có danh sách quỹ (config `quy: []`, Dũng chốt 2026-10-05): quỹ KHÔNG bắt buộc. Có nhắc thì ghi đúng chữ người gõ —
+// nhưng chữ đó phải nằm trong tin gốc hoặc tin xác nhận, để Claude không tự bịa ra tên quỹ.
+const MO = { ...CFG, quy: [] }
+const DUNG_MO = { chat_id: KENH, message_id: "100", loai: "chi", so_tien: 1250000, noi_dung: "Mua vật tư mẫu", hoa_don: "Có" }
+
+test("[chưa có danh sách quỹ] tin không nhắc quỹ → ghi ngay, cột Nguồn quỹ trống, không cần xác nhận", async () => {
+  const t = dung([msg("100", "chi Mua vật tư mẫu 1.250.000đ có hoá đơn đỏ")], { cfg: MO })
+  const k = await t.so.kiemTin({ chat_id: KENH, message_id: "100" })
+  assert.equal(k.dung_luat, true); assert.equal(k.quy_bat_buoc, false); assert.deepEqual(k.danh_sach_quy, [])
+  const r = await t.so.ghiKhoan(DUNG_MO)
+  assert.equal(r.ok, true, r.ly_do); assert.equal(t.ghi[0].rows[0][5], "")
+})
+
+test("[chưa có danh sách quỹ] quỹ có trong chữ tin gốc → ghi đúng chữ đó, không cần xác nhận", async () => {
+  const t = dung([msg("100", "chi Mua vật tư mẫu 1.250.000đ có hoá đơn đỏ, từ Quỹ dự án A")], { cfg: MO })
+  const r = await t.so.ghiKhoan({ ...DUNG_MO, nguon_quy: "quỹ dự án A" })
+  assert.equal(r.ok, true, r.ly_do); assert.equal(t.ghi[0].rows[0][5], "quỹ dự án A")
+})
+
+test("[chưa có danh sách quỹ] tên quỹ KHÔNG có trong tin → từ chối (chặn Claude bịa quỹ)", async () => {
+  const t = dung([msg("100", "chi Mua vật tư mẫu 1.250.000đ có hoá đơn đỏ")], { cfg: MO })
+  const r = await t.so.ghiKhoan({ ...DUNG_MO, nguon_quy: "Quỹ bịa" })
+  assert.equal(r.ok, false); assert.match(r.ly_do, /quỹ/i); assert.equal(t.ghi.length, 0)
+})
+
+test("[chưa có danh sách quỹ] quỹ nằm trong tin xác nhận (Reply) → ghi được", async () => {
+  const t = dung([msg("100", "chi Mua vật tư mẫu 1.250.000đ có hoá đơn đỏ"), tl("105", "chi từ quỹ marketing nhé", "100")], { cfg: MO })
+  const r = await t.so.ghiKhoan({ ...DUNG_MO, nguon_quy: "quỹ marketing", xac_nhan_message_id: "105" })
+  assert.equal(r.ok, true, r.ly_do); assert.equal(t.ghi[0].rows[0][5], "quỹ marketing")
+})
+
+test("[chưa có danh sách quỹ] sua_khoan đổi quỹ theo chữ trong tin yêu cầu sửa", async () => {
+  const t = dung([msg("100", "chi Mua vật tư mẫu 1.250.000đ có hoá đơn đỏ"), tl("106", "nhầm, chi từ quỹ B", "100")], { cfg: MO, dongTheoMa: { "100": 7 } })
+  assert.equal((await t.so.suaKhoan({ chat_id: KENH, message_id: "100", yeu_cau_message_id: "106", nguon_quy: "quỹ B" })).ok, true)
+  assert.equal((await t.so.suaKhoan({ chat_id: KENH, message_id: "100", yeu_cau_message_id: "106", nguon_quy: "quỹ C" })).ok, false)
 })

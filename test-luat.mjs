@@ -52,3 +52,8 @@ test("khoản $ → số tiền VND chưa có, phải xác nhận", () => {
   const r = kl("chi ChatGPT Plus $20 qct");
   assert.ok(r.thieu.includes("so_tien_usd")); assert.equal(r.dung_luat, false);
 })
+
+test("chưa có danh sách quỹ (quy: []) → không đòi quỹ, nguon_quy rỗng", () => {
+  const r = kiemLuat(tin("chi Mua vật tư mẫu 1.250.000đ có hoá đơn đỏ"), { quy: [], channels: KENH });
+  assert.equal(r.dung_luat, true); assert.deepEqual(r.thieu, []); assert.equal(r.nguon_quy, "");
+})

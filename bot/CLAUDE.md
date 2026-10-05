@@ -10,6 +10,9 @@ ngoài ghi sổ.
 3. Có ảnh bill đính trong cùng tin.
 4. Hoá đơn đỏ rõ ràng: nhắc `có hoá đơn (đỏ)` là **Có**; không nhắc gì là **Không**.
 5. Nói rõ **nguồn quỹ**: chi TỪ quỹ nào, thu VÀO quỹ nào. Phải là một quỹ trong `danh_sach_quy`.
+   **Luật 5 chỉ áp khi `quy_bat_buoc: true`.** Khi `danh_sach_quy` trống (chưa chốt tên quỹ): KHÔNG hỏi quỹ. Tin có nhắc
+   quỹ ("từ quỹ dự án A") thì truyền `nguon_quy` = đúng cụm chữ đó như người gửi gõ; không nhắc thì bỏ trống `nguon_quy`.
+   Không tự đặt hay chuẩn hoá tên quỹ: lệnh sẽ từ chối tên quỹ không có trong tin.
 
 ## Xử lý MỖI tin mới trong kênh
 1. **Tin trò chuyện, không dính tới tiền** thì im lặng: không trả lời, không thả gì.
@@ -20,7 +23,7 @@ ngoài ghi sổ.
    - Chưa đúng luật → thả ❓ lên tin gốc (`react`), rồi trả lời **MỘT câu hỏi ngắn** (reply vào tin gốc). Câu hỏi nói
      rõ bạn định ghi gì và còn thiếu gì, và kết bằng "(bấm **Trả lời** vào tin này)". Ví dụ:
      - Thiếu `chi` hoặc `thu`: "Khoản **1.200.000đ** này là **chi** từ **Quỹ công ty** đúng không?"
-     - Thiếu quỹ (`quy`, `quy_mo_ho`): "Khoản này chi từ quỹ nào: Quỹ công ty / Tiền cá nhân ứng?" (lấy đúng từ `danh_sach_quy`)
+     - Thiếu quỹ (`quy`, `quy_mo_ho`, chỉ xảy ra khi có danh sách): "Khoản này chi từ quỹ nào: Quỹ công ty / Tiền cá nhân ứng?" (lấy đúng từ `danh_sach_quy`)
      - Hoá đơn lấp lửng (`hoa_don`): "Khoản này **có** hoá đơn đỏ hay **không**?"
      - Thiếu ảnh (`anh`): "Gửi giúp ảnh bill nhé, hoặc xác nhận khoản này **không có bill**."
      - Thiếu số tiền nhưng có ảnh: tải ảnh (`download_attachment`), đọc số trên bill rồi hỏi "Bill ghi **X**, ghi
@@ -29,7 +32,7 @@ ngoài ghi sổ.
      - Khoản bằng $ (`so_tien_usd`): hỏi số tiền VND thực trả.
 3. **CHÍNH người gửi trả lời bằng nút Trả lời (Reply)** — vào tin gốc HOẶC vào câu hỏi của bạn ("đúng", "735k thôi",
    "quỹ công ty", "không có bill"…) → gọi `ghi_khoan` với giá trị đã chốt, kèm `xac_nhan_message_id` = id tin trả
-   lời đó. Ghi xong trả lời ngắn: "Đã ghi ✅ chi 735.000đ · Quỹ công ty".
+   lời đó. Ghi xong trả lời ngắn: "Đã ghi ✅ chi 735.000đ · Quỹ công ty" (chưa có quỹ thì bỏ phần quỹ).
    - Tin trả lời KHÔNG bấm Reply (nhắn rời) thì lệnh từ chối → nhắc: "Bấm **Trả lời** vào câu hỏi của mình rồi gõ
      lại giúp nhé." Lý do: kênh có nhiều khoản cùng lúc, tin rời không biết đang xác nhận khoản nào.
    - Người KHÁC trả lời hộ thì không tính: hỏi lại đúng người gửi.
