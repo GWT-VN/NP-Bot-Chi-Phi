@@ -62,7 +62,7 @@ thu: Hoàn tiền cọc 2tr                                        + ảnh
 |---|---|
 | ✅ | Đã ghi sổ |
 | ⚠️ + 1 tin rep | Chưa ghi (thiếu tiền tố, không thấy hoặc thấy nhiều số tiền, hoá đơn mơ hồ). Sửa thẳng tin trong 7 ngày là bot tự ghi, không gửi lại. Ghi được rồi thì bot gỡ ⚠️ và xoá tin rep |
-| 📷 | Có số tiền nhưng thiếu ảnh. Không rep để tránh spam |
+| 📷 | Có số tiền nhưng thiếu ảnh. Không rep để tránh spam. Người gửi phải gửi **tin mới** kèm ảnh: Discord không cho thêm ảnh khi sửa tin. Tin 📷 chưa vào sổ nên gửi lại không bị trùng |
 | ⌛ | Tin ⚠️ quá 7 ngày, bot không ghi nữa |
 
 ## 4. Google Sheet "Sổ chi phí New Projects"
@@ -135,8 +135,16 @@ Không có khoá Supabase hay khoá ERP nào. Workflow chạy với `permissions
 - **Lỗi phải làm workflow ĐỎ.** Bản gốc nuốt lỗi Discord: token sai, bot chưa vào kênh (401/403) thì im lặng ra "0 tin"
   và job vẫn xanh. Bản này ném lỗi khi Discord trả status không OK, và đặt `process.exitCode = 1` mỗi khi bước quét
   hoặc commit lỗi.
-- **Chưa bật Message Content Intent** thì mọi tin người gửi đến với `content` rỗng, và bot sẽ ⚠️ oan mọi tin có ảnh.
-  Có từ 3 tin người trở lên mà tin nào cũng rỗng chữ thì dừng lượt quét, báo lỗi "kiểm Message Content Intent".
+- **Chưa bật Message Content Intent** thì Discord trả mọi tin người về RỖNG HẲN: không chữ, không ảnh, không embed. Bot
+  sẽ bỏ qua im lặng hết, kênh trông như không ai gửi gì. Có từ 3 tin người trở lên mà tin nào cũng rỗng hẳn thì dừng
+  lượt quét và báo lỗi "kiểm Message Content Intent". Tin chỉ có ảnh không chữ **không** tính là rỗng, để 3 tấm ảnh
+  trơn không làm dừng cả bot.
+- **Đọc `_state` lỗi** (429/5xx, hai bot dùng chung hạn mức Sheets của ai@gwt.vn) thì dừng lượt quét, không coi là sổ
+  trống. Bản gốc coi lỗi là sổ trống nên ghi lại cả cửa sổ 7 ngày.
+- **React/reply bị 401/403** (bot mất quyền Add Reactions/Send Messages) thì workflow đỏ. Không đỏ thì sổ vẫn ghi mà
+  không ai thấy ✅, người dùng gửi lại và sổ bị ghi trùng.
+- **Ngày ghi sổ theo giờ VN.** Discord trả giờ UTC; cắt chuỗi như bản gốc thì tin gửi 0h–7h sáng bị lùi một ngày.
+- **Chữ gõ kiểu Unicode tổ hợp** được chuẩn hoá NFC trước khi đọc, không thì "có hoá đơn đỏ" ra "Không" im lặng.
 - **Locale Sheet khác vi_VN** thì dừng ghi và báo lỗi, không ghi ngày sai.
 - Ghi Sheet lỗi thì tin **không** được đánh dấu đã xử lý, lượt sau tự ghi lại. Không mất khoản, không ghi trùng.
 - Lưu Drive lỗi thì vẫn ghi dòng nhưng để trống cột link và log cảnh báo, như bản gốc.

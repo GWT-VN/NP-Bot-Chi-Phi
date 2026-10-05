@@ -1,6 +1,6 @@
 // Test parser sổ chi phí NP — chạy: node test-parser.mjs (exit 0 = đạt, 1 = hỏng). Chép từ bản gốc @da1b637.
 // Mỗi ca gắn nhãn FIX-* = bản sửa mà ca đó bảo vệ. Gỡ fix → ca đó PHẢI hỏng (red-green).
-import { parseEntry, detectHoaDon, route, repText, phanLoaiReply, nenRep, nghiThieuIntent } from "./scanner.mjs";
+import { parseEntry, detectHoaDon, route, repText, phanLoaiReply, nenRep, nghiThieuIntent, ngayVN } from "./scanner.mjs";
 
 // MẶC ĐỊNH hasDirectImg:true cho mọi ca — từ 2026-08-14 khoản phải kèm ảnh chứng từ mới ghi (xem nhóm ẢNH-*),
 // nên hình dạng "khoản thật" là CÓ ảnh. Ca nào muốn kiểm chính luật ảnh thì tự truyền hasDirectImg:false.
@@ -630,7 +630,12 @@ for (const [tag, cond, want] of [
 // ── INTENT: chưa bật Message Content Intent → mọi tin người có content "" → phải DỪNG, không ⚠️ oan cả loạt ──
 const nguoi = (content, extra = {}) => ({ author: { bot: false }, content, ...extra });
 for (const [tag, msgs, want] of [
-  ["INTENT-3-tin-rỗng→nghi", [nguoi(""), nguoi(""), nguoi("", { attachments: [{ url: "x" }] })], true],
+  // Thiếu intent: Discord xoá CẢ content, attachments, embeds → tin rỗng hẳn.
+  ["INTENT-3-tin-rỗng-hẳn→nghi", [nguoi(""), nguoi(""), nguoi("")], true],
+  // CÓ intent mà người gửi 3 ảnh trơn không chữ → KHÔNG được dừng cả bot (review #4: dừng oan 14 ngày).
+  ["INTENT-3-ảnh-trơn-không-chữ→không-nghi", [nguoi("", { attachments: [{ url: "a" }] }), nguoi("", { attachments: [{ url: "b" }] }), nguoi("", { attachments: [{ url: "c" }] })], false],
+  // Thiếu intent: forward cũng bị xoá chữ trong snapshot → snapshot RỖNG không được cứu tin đó khỏi "rỗng".
+  ["INTENT-forward-snapshot-rỗng→vẫn-nghi", [nguoi(""), nguoi(""), nguoi("", { message_snapshots: [{ message: { content: "" } }] })], true],
   ["INTENT-có-1-tin-có-chữ→không-nghi", [nguoi(""), nguoi(""), nguoi("chi ship 45k")], false],
   ["INTENT-dưới-3-tin→không-nghi", [nguoi(""), nguoi("")], false],
   ["INTENT-tin-bot-không-tính", [nguoi(""), nguoi(""), { author: { bot: true }, content: "" }], false],
@@ -638,6 +643,21 @@ for (const [tag, msgs, want] of [
 ]) {
   const got = nghiThieuIntent(msgs);
   if (got === want) pass++; else fails.push({ tag, input: tag, want, got });
+}
+// ── NGÀY-VN: ngày ghi sổ = ngày nhắn THEO GIỜ VN, không phải ngày UTC (review #5) ──
+for (const [tag, ts, want] of [
+  ["NGÀY-VN-6h-sáng-mùng-1", "2026-10-31T23:30:00.000000+00:00", "2026-11-01"],
+  ["NGÀY-VN-0h-sáng", "2026-10-04T17:00:00+00:00", "2026-10-05"],
+  ["NGÀY-VN-chiều-giữ-nguyên", "2026-10-05T08:00:00+00:00", "2026-10-05"],
+]) { const got = ngayVN(ts); if (got === want) pass++; else fails.push({ tag, input: ts, want, got }); }
+// ── NFD: gõ Unicode tổ hợp (Unikey "tổ hợp") phải ra y như dựng sẵn (review #6) ──
+{
+  const nfd = "chi Mua vật tư 1.250.000đ có hoá đơn đỏ".normalize("NFD");
+  const got = detectHoaDon(nfd);
+  if (got === "Có") pass++; else fails.push({ tag: "NFD-hoá-đơn-đỏ", input: "NFD", want: "Có", got });
+  const p = parseEntry(item(CFG_TRANG, nfd));
+  const got2 = p.skip ? `SKIP:${p.reason}` : `${p.loai}|${p.amount}|${p.hoaDon}|${p.noiDung === p.noiDung.normalize("NFC")}`;
+  if (got2 === "chi|1250000|Có|true") pass++; else fails.push({ tag: "NFD-parseEntry", input: "NFD", want: "chi|1250000|Có|true", got: got2 });
 }
 const total = pass + fails.length; // đếm theo ca THỰC chạy (đã lọc ca Hiền)
 for (const f of fails) console.log(`HỎNG [${f.tag}] "${f.input.slice(0, 56)}"\n     mong=${f.want}  thực=${f.got}`);

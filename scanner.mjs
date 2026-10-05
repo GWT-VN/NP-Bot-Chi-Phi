@@ -103,6 +103,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // im lặng nên reaction RỚT khi bị rate-limit: ca thật 2026-08-13, bot rep "hết hạn" xong mà ⚠️ KHÔNG gỡ và ⌛
 // KHÔNG lên vì cả hai lệnh reaction dính 429 (chạy nhiều lượt liên tiếp). 404 khi DELETE = reaction đã không
 // còn = thành công. Ném lỗi CHỈ sau khi hết lượt retry → caller thấy được (react log ✗; unreact nuốt êm).
+// 401/403 khi react/reply = bot MẤT QUYỀN (Add Reactions / Send Messages) hoặc token hỏng — lỗi CẤU HÌNH, không phải
+// lỗi tạm. Không làm đỏ thì sổ vẫn ghi mà không ai thấy ✅/⚠️ → người gửi lại → ghi trùng, job xanh (review cuối nhánh).
+function danhDauLoiQuyen(status) { if (status === 401 || status === 403) process.exitCode = 1; }
 async function reactFetch(method, channelId, messageId, emoji) {
   const url = `${API}/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me`;
   const ten = method === "PUT" ? "react" : "unreact";
@@ -110,11 +113,12 @@ async function reactFetch(method, channelId, messageId, emoji) {
     const r = await fetch(url, { method, headers: { Authorization: `Bot ${TOKEN}` } });
     if (r.status === 429) { const d = await r.json().catch(() => ({})); logLine(`  ⏳ 429 ${ten} ${emoji} ${messageId} — chờ ${d.retry_after ?? 1}s rồi thử lại`); await sleep((d.retry_after ?? 1) * 1000 + 100); continue; }
     if (r.ok || (method === "DELETE" && r.status === 404)) return;
+    danhDauLoiQuyen(r.status);
     throw new Error(`${ten} ${r.status}`);
   }
   throw new Error(`${ten} ${emoji} ${messageId}: 429 quá 5 lần`);
 }
-async function react(channelId, messageId, emoji) { return reactFetch("PUT", channelId, messageId, emoji); }
+export async function react(channelId, messageId, emoji) { return reactFetch("PUT", channelId, messageId, emoji); }
 // TRẢ VỀ id tin rep vừa tạo — caller lưu vào _rep!B để sau này XOÁ đúng tin đó. Không trả id là
 // không bao giờ xoá được rep, và tin rep "CHƯA vào sổ" sẽ treo lại nói dối sau khi khoản đã ✅.
 // 429 → "" (giữ nguyên hành vi cũ: không ném), rep coi như không có id → bỏ qua bước xoá về sau.
@@ -123,7 +127,7 @@ export async function reply(channelId, messageId, text) {
     method: "POST", headers: { Authorization: `Bot ${TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify({ content: text, message_reference: { message_id: messageId }, allowed_mentions: { parse: ["users"] } }),
   });
-  if (!r.ok) { if (r.status === 429) return ""; throw new Error(`reply ${r.status}`); }
+  if (!r.ok) { if (r.status === 429) return ""; danhDauLoiQuyen(r.status); throw new Error(`reply ${r.status}`); }
   return String((await r.json().catch(() => ({})))?.id || "");
 }
 async function unreact(channelId, messageId, emoji) { return reactFetch("DELETE", channelId, messageId, emoji); }
@@ -164,7 +168,7 @@ function dungItem(m, chanId, c, { expired = false, rep = null } = {}) {
     const refImgs = atts(ref).filter(isImg).slice(0, MAX_IMG_PER_MSG);
     refItem = {
       id: String(ref.id), channelId: chanId, channel: c.name, cfg: c, book: c.book,
-      date: String(ref.timestamp || "").slice(0, 10),
+      date: ngayVN(ref.timestamp),
       authorId: ref.author?.id, author: ref.author?.global_name || ref.author?.username || "",
       content: content(ref),
       images: refImgs.map((a) => ({ url: a.url, ct: a.content_type || "", name: a.filename || "" })),
@@ -175,19 +179,23 @@ function dungItem(m, chanId, c, { expired = false, rep = null } = {}) {
     id: String(m.id), channelId: chanId, channel: c.name, cfg: c,
     book: c.book, expired, hasDirectImg,
     wasRepped: !!rep, repMsgId: rep?.repMsgId || "", repReason: rep?.reason || "",
-    date: String(m.timestamp).slice(0, 10),
+    date: ngayVN(m.timestamp),
     authorId: m.author?.id, author: m.author?.global_name || m.author?.username || "",
     content: text, images: imgs.map((a) => ({ url: a.url, ct: a.content_type || "", name: a.filename || "" })),
     replyToId, refItem,
   };
 }
 
-// Chưa bật Message Content Intent → Discord trả content "" cho MỌI tin người (trừ tin @bot). Không chặn thì bot ⚠️ oan
-// mọi tin có ảnh ("thiếu cả tiền tố lẫn số") và bỏ qua mọi tin chữ. ≥3 tin người, tin nào cũng rỗng chữ (không tính
-// tin forward — chữ của nó nằm trong snapshot) → gần như chắc chắn thiếu intent, không phải người gửi toàn ảnh trơn.
+// Chưa bật Message Content Intent → Discord trả tin người (trừ tin @bot) RỖNG HẲN: không chữ, không ảnh, không embed.
+// Không chặn thì bot bỏ qua im lặng MỌI tin (dungItem trả null) — kênh trông như không ai gửi gì, job xanh.
+// ≥3 tin người mà tin nào cũng rỗng hẳn → gần như chắc chắn thiếu intent.
 export function nghiThieuIntent(msgs) {
   const nguoi = (msgs || []).filter((m) => !m.author?.bot);
-  return nguoi.length >= 3 && nguoi.every((m) => !String(m.content || "").trim() && !(m.message_snapshots || []).length);
+  // Thiếu intent, Discord xoá CẢ content, attachments, embeds (kể cả trong snapshot tin forward). Tin còn ảnh/embed
+  // hay snapshot còn chữ/ảnh = intent ĐANG BẬT → không được tính là "rỗng" (3 ảnh trơn không chữ mà dừng cả bot là oan).
+  const coGi = (x) => !!(String(x?.content || "").trim() || (x?.attachments || []).length || (x?.embeds || []).length);
+  const rongHan = (m) => !coGi(m) && !(m.message_snapshots || []).some((sn) => coGi(sn?.message));
+  return nguoi.length >= 3 && nguoi.every(rongHan);
 }
 
 // Đọc 1 trang tin. KHÁC bản gốc: bản gốc nuốt mọi lỗi (`catch { continue; }`, batch không phải mảng → break) nên token
@@ -204,10 +212,24 @@ async function layTrang(url, tenKenh) {
   throw new Error(`Discord 429 quá 5 lần khi đọc kênh ${tenKenh}`);
 }
 
+// Ngày ghi sổ = ngày nhắn THEO GIỜ VN. Discord trả timestamp UTC; cắt chuỗi `slice(0,10)` như bản gốc thì tin gửi
+// 00:00–06:59 VN bị ghi LÙI một ngày (mùng 1 rơi sang tháng trước — sai cả folder Drive lẫn Tổng hợp). TZ của
+// workflow không cứu được phép cắt chuỗi. Trả "YYYY-MM-DD" (sv-SE in đúng khuôn ISO).
+export function ngayVN(ts) {
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? String(ts || "").slice(0, 10) : d.toLocaleDateString("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" });
+}
+// Nạp danh sách tin ĐÃ GHI (_state!D) cho mỗi sổ. KHÁC bản gốc: lỗi đọc (429/5xx — hai bot dùng chung hạn mức Sheets
+// của ai@gwt.vn) phải NÉM. Bản gốc coi lỗi = "sổ trống" → mọi tin ✅ trong cửa sổ 7 ngày bị ghi LẠI, job vẫn xanh.
+export async function napDaGhi(loader, BOOKS_) {
+  const seen = {};
+  for (const [bk, b] of Object.entries(BOOKS_)) seen[bk] = await loader(b.sheetId);
+  return seen;
+}
+
 async function buildWorklist() {
   // Dedup theo FILE, không theo quỹ: 1 file = 1 _state, mà quỹ chỉ biết được SAU khi parse.
-  const seen = {};
-  for (const [bk, b] of Object.entries(BOOKS)) { try { seen[bk] = await books.loadProcessed(b.sheetId); } catch { seen[bk] = new Set(); } }
+  const seen = await napDaGhi(books.loadProcessed, BOOKS); // lỗi đọc → NÉM, không ghi trùng
   const repped = {}; // bk → Map<msgId, {repMsgId, reason}>. Chuỗi "" = dòng _rep cũ (chưa lưu cột đó).
   for (const [bk, b] of Object.entries(BOOKS)) { try { repped[bk] = await books.loadRepped(b.sheetId); } catch { repped[bk] = new Map(); } }
   // recordFloor = sàn CỬA GHI (days): tin cũ hơn KHÔNG tự ghi. fetchFloor = sàn FETCH, lùi thêm GRACE_DAYS để
@@ -423,7 +445,8 @@ const MENTIONS_HD = new RegExp(HD_MENTION_SRC);
 const HD_TREO = /^(về|sau|chưa|chờ|đợi|đang|quên|hẹn|mai|mốt|sẽ|thiếu|bổ|sung|tới|nợ|xin|gửi)$/;
 const tachChu = (s) => String(s).replace(/[^0-9a-zà-ỹ\s]/gi, " ").trim().split(/\s+/).filter(Boolean);
 export function detectHoaDon(text) {
-  const t = String(text || "").toLowerCase();
+  // NFC: gõ Unicode TỔ HỢP (Unikey "tổ hợp") tách dấu khỏi chữ → regex "hoá đơn" không khớp → "Không" im lặng.
+  const t = String(text || "").normalize("NFC").toLowerCase();
   const re = new RegExp(HD_MENTION_SRC, "g"); // tạo mới mỗi lần gọi: regex /g/ dùng chung sẽ nhớ lastIndex
   const seen = new Set();
   let m;
@@ -478,7 +501,7 @@ function ngayTuTin(d, mo, yy, msgDate) {
 
 // ── Parse 1 tin → {amount, loai?, hoaDon, ngay, noiDung, ncc, ghiChu} | {skip, silent, reason} ──
 export function parseEntry(item) {
-  let text = String(item.content || "").replace(/<@[!&]?\d+>|<#\d+>|<a?:\w+:\d+>|https?:\/\/\S+/g, " ").trim();
+  let text = String(item.content || "").normalize("NFC").replace(/<@[!&]?\d+>|<#\d+>|<a?:\w+:\d+>|https?:\/\/\S+/g, " ").trim();
   // Ghi chú CÓ CHỦ ĐÍCH → BỎ QUA im lặng: KHÔNG ⚠️, KHÔNG rep, KHÔNG ghi sổ, kể cả khi tin có số tiền. Đây là
   // một đường IM của kênh Trang (cạnh nhánh "tin không có số nghi là tiền" bên dưới, §6). Hai dấu hiệu, dấu nào cũng đủ:
   //   (a) MARKER đầu tin: mở đầu bằng "note" / "ghi chú" (cả dạng không dấu "ghi chu"). (?![a-zà-ỹ]) chặn chữ
@@ -776,8 +799,8 @@ async function scanPhase() {
   }
 
   // ── Pha 📷 THIẾU ẢNH: tin có số tiền nhưng không kèm ảnh chứng từ → dán 📷, KHÔNG ghi, KHÔNG rep.
-  // Chạy ở CẢ dry (log) lẫn thật. KHÔNG mark _state: người gõ SỬA tin để đính ảnh thì lượt sau phải ghi được
-  // (y như mọi tin chưa xử lý). Hệ quả chấp nhận: còn trong cửa sổ --days thì mỗi lượt thử react lại — react
+  // Chạy ở CẢ dry (log) lẫn thật. KHÔNG mark _state (y như mọi tin chưa xử lý): Discord không cho thêm ảnh khi sửa
+  // tin, nên người gõ phải GỬI TIN MỚI kèm ảnh — tin 📷 không nằm trong _state/sổ nên không ghi trùng. Hệ quả chấp nhận: còn trong cửa sổ --days thì mỗi lượt thử react lại — react
   // trùng vô hại (Discord bỏ qua), và tự dừng khi tin trôi khỏi 7 ngày.
   // Tin từng bị ⚠️ theo luật CŨ (đã rep "chưa vào sổ") → gỡ ⚠️ + xoá rep: nay bot cố ý không ghi, để rep cũ
   // treo lại là dạy sai (người ta sẽ sửa số tiền mãi mà vẫn không vào sổ vì thiếu thứ khác — cái ảnh).

@@ -24,7 +24,7 @@ thu Hoàn tiền cọc 2tr                                    [+ ảnh]
 |---|---|---|
 | ✅ | Đã ghi sổ | Không cần làm gì |
 | ⚠️ | **CHƯA ghi**, bot rep lý do | **Sửa thẳng tin đó** trong 7 ngày, đừng gửi lại (gửi lại là ghi 2 lần) |
-| 📷 | Có số tiền nhưng thiếu ảnh | Sửa tin, đính ảnh vào |
+| 📷 | Có số tiền nhưng thiếu ảnh | Gửi **tin mới** gồm chữ + ảnh (Discord không cho thêm ảnh khi sửa tin). Tin 📷 chưa vào sổ nên gửi lại **không** bị ghi trùng; xoá tin cũ cho gọn |
 | ⌛ | Tin ⚠️ đã quá 7 ngày | Gửi **tin mới** |
 
 - **Sau khi đã ✅ mà sửa tin thì bot không cập nhật sổ.** Nhắn người quản lý sổ để sửa.
