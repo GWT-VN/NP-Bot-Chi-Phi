@@ -80,20 +80,31 @@ export async function kiemTraLocale(sheetId) {
 // Dấu ngăn = ARG_SEP (placeholder) — buildFundRow ĐỒNG BỘ (route() gọi nó, route() không async được),
 // mà dấu thật chỉ biết sau khi hỏi sheet. commit() thay ở biên ghi. Placeholder sót lại → "#ERROR!"
 // (lỗi KÊU TO), không bao giờ ra số sai im lặng.
-const TON_FUND = `=SUM($F$2:INDEX($F:$F${ARG_SEP}ROW()))-SUM($G$2:INDEX($G:$G${ARG_SEP}ROW()))`;
+const TON_FUND = `=SUM($G$2:INDEX($G:$G${ARG_SEP}ROW()))-SUM($H$2:INDEX($H:$H${ARG_SEP}ROW()))`;
 // `=ROW()-1` (cột STT) không có dấu ngăn → không đụng tới.
-// Bố cục sổ NP (10 cột, A..J): STT · Ngày · Diễn giải · Người · Hoá đơn đỏ · Thu · Chi · Tồn · Link chứng từ · Ghi chú.
+// Bố cục sổ NP v2 (12 cột, A..L): STT · Ngày · Diễn giải · Người · Hoá đơn đỏ · Nguồn quỹ · Thu · Chi · Tồn ·
+// Link chứng từ · Ghi chú · Mã tin. Spec v2 §6.
+//   - Nguồn quỹ (F): chi TỪ quỹ nào / thu VÀO quỹ nào — tên chuẩn trong config.json `quy` (luật 5).
+//   - Mã tin (L, ẩn): msgId tin gốc — sua_khoan tìm dòng theo cột này vì người quản lý có thể xoá/chèn dòng tay.
 // Khác bản gốc: BỎ "Đã hoàn ứng" / "Ngày hoàn" / "Link hóa đơn" — sổ chi phí dự án không có vòng công ty hoàn tiền.
 // Dòng thu: Hoá đơn "—" (hoá đơn đỏ chỉ có nghĩa với khoản chi).
-export function buildFundRow({ loai = "chi", ngay, dienGiai, nguoi = "", hoaDon = "Không", amount = 0, link = "", ghiChu = "" }) {
+export const COT = { ngay: 1, dienGiai: 2, nguoi: 3, hoaDon: 4, nguonQuy: 5, thu: 6, chi: 7, ton: 8, link: 9, ghiChu: 10, maTin: 11 };
+const CHU = "ABCDEFGHIJKL";
+export function buildFundRow({ loai = "chi", ngay, dienGiai, nguoi = "", hoaDon = "Không", nguonQuy = "", amount = 0, link = "", ghiChu = "", maTin = "" }) {
   const isThu = loai === "thu";
   const hd = isThu ? "—" : (hoaDon || "Không");
   const n = Number(amount) || "";
   return [
-    "=ROW()-1", toDMY(ngay), dienGiai || "", nguoi || "", hd,
+    "=ROW()-1", toDMY(ngay), dienGiai || "", nguoi || "", hd, nguonQuy || "",
     isThu ? n : "", isThu ? "" : n,
-    TON_FUND, link || "", ghiChu || "",
+    TON_FUND, link || "", ghiChu || "", maTin ? String(maTin) : "",
   ];
+}
+
+// Dòng (số thứ tự trên sheet, 1-based) chứa msgId ở cột L; `cot` = giá trị đọc từ L1:L (gồm tiêu đề). THUẦN.
+export function viTriMaTin(cot, msgId) {
+  for (let i = 1; i < cot.length; i++) if (String((cot[i] || [])[0] ?? "").trim() === String(msgId)) return i + 1;
+  return null;
 }
 
 // ── dedup (messageId ở _state!D) ─────────────────────────────────────────────
@@ -193,13 +204,13 @@ export async function commit({ sheetId, tab, rows = [], msgIds = [] }) {
 // Công thức KHÔNG cần sửa sau khi xoá: STT là `=ROW()-1` và Tồn quỹ dùng INDEX(...ROW()) nên tự co lại.
 export async function xoaDongSo({ sheetId, tab, rowNum, expectAmount, expectDMY = null, dry = false }) {
   const sheets = sheetsApi();
-  const rng = `'${tab}'!A${rowNum}:J${rowNum}`;
+  const rng = `'${tab}'!A${rowNum}:L${rowNum}`;
   const r = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: rng, valueRenderOption: "FORMATTED_VALUE" });
   const row = (r.data.values || [])[0];
   if (!row) throw new Error(`dòng ${rowNum} của tab '${tab}' RỖNG — không xoá`);
   const soTu = (v) => Number(String(v ?? "").replace(/[^\d]/g, "")) || 0;   // "210.000" / "210,000" → 210000
   const ngay = String(row[1] ?? "").trim(), dienGiai = String(row[2] ?? "").trim();
-  const thu = soTu(row[5]), chi = soTu(row[6]);
+  const thu = soTu(row[COT.thu]), chi = soTu(row[COT.chi]);
   const mota = `Ngày ${ngay} · Thu ${thu} · Chi ${chi} · "${dienGiai}"`;
   if (thu !== expectAmount && chi !== expectAmount)
     throw new Error(`KHÔNG khớp số tiền (chờ ${expectAmount}) tại dòng ${rowNum} → ${mota}. Dừng, không xoá.`);
@@ -223,11 +234,11 @@ export async function xoaDongSo({ sheetId, tab, rowNum, expectAmount, expectDMY 
 // Vẫn đối chiếu NGÀY trước khi ghi đè — số dòng có thể lệch nếu ai đó chèn/xoá dòng tay.
 export async function suaDongSo({ sheetId, tab, rowNum, expectDMY, dienGiai, ghiChu, dry = false }) {
   const sheets = sheetsApi();
-  const r = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!A${rowNum}:J${rowNum}`, valueRenderOption: "FORMATTED_VALUE" });
+  const r = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!A${rowNum}:L${rowNum}`, valueRenderOption: "FORMATTED_VALUE" });
   const row = (r.data.values || [])[0];
   if (!row) throw new Error(`dòng ${rowNum} của tab '${tab}' RỖNG — không sửa`);
   const ngay = String(row[1] ?? "").trim();
-  const cu = { dienGiai: String(row[2] ?? "").trim(), ghiChu: String(row[9] ?? "").trim() };
+  const cu = { dienGiai: String(row[2] ?? "").trim(), ghiChu: String(row[COT.ghiChu] ?? "").trim() };
   if (expectDMY && ngay !== expectDMY)
     throw new Error(`KHÔNG khớp ngày (chờ ${expectDMY}, thấy ${ngay}) tại dòng ${rowNum} → "${cu.dienGiai}". Dừng, không sửa.`);
   if (dry) return { dry: true, rowNum, cu, moi: { dienGiai, ghiChu } };
@@ -239,7 +250,7 @@ export async function suaDongSo({ sheetId, tab, rowNum, expectDMY, dienGiai, ghi
       valueInputOption: "RAW",
       data: [
         { range: `'${tab}'!C${rowNum}`, values: [[dienGiai]] },
-        { range: `'${tab}'!J${rowNum}`, values: [[ghiChu]] },
+        { range: `'${tab}'!K${rowNum}`, values: [[ghiChu]] },
       ],
     },
   });
@@ -247,6 +258,43 @@ export async function suaDongSo({ sheetId, tab, rowNum, expectDMY, dienGiai, ghi
 }
 
 // CLI nhẹ: ping <sheetId> | processed <sheetId>
+// ── v2: tìm / sửa / đọc dòng cho MCP npso ─────────────────────────────────────
+export async function timDongTheoMaTin(sheetId, tab, msgId) {
+  const r = await sheetsApi().spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!L1:L` });
+  return viTriMaTin(r.data.values || [], msgId);
+}
+
+// Ghi đè các trường được sửa trên MỘT dòng (đã tìm theo Mã tin). Không đụng STT/Tồn (công thức) và cột L.
+export async function capNhatDong(sheetId, tab, rowNum, { dienGiai, hoaDon, nguonQuy, loai, amount, ghiChuThem } = {}) {
+  const sheets = sheetsApi();
+  const o = (k, v) => ({ range: `'${tab}'!${CHU[COT[k]]}${rowNum}`, values: [[v]] });
+  const data = []
+  if (dienGiai !== undefined) data.push(o("dienGiai", dienGiai));
+  if (hoaDon !== undefined) data.push(o("hoaDon", loai === "thu" ? "—" : hoaDon));
+  if (nguonQuy !== undefined) data.push(o("nguonQuy", nguonQuy));
+  if (amount !== undefined || loai !== undefined) {
+    if (!loai || amount === undefined) throw new Error("sửa số tiền phải kèm cả loai lẫn amount");
+    data.push(o("thu", loai === "thu" ? Number(amount) : ""), o("chi", loai === "thu" ? "" : Number(amount)));
+  }
+  if (ghiChuThem) {
+    const r = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!K${rowNum}` });
+    const cu = String(((r.data.values || [])[0] || [])[0] ?? "").trim();
+    data.push(o("ghiChu", cu ? `${cu}; ${ghiChuThem}` : ghiChuThem));
+  }
+  if (!data.length) return { updated: false };
+  await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: sheetId, requestBody: { valueInputOption: "RAW", data } });
+  return { updated: true, rowNum, so: data.length };
+}
+
+// Đọc toàn bộ sổ (cho doc_so). Ngày giữ dạng chữ dd/mm/yyyy, số giữ dạng số.
+export async function docSo(sheetId, tab) {
+  const r = await sheetsApi().spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!A2:L`,
+    valueRenderOption: "UNFORMATTED_VALUE", dateTimeRenderOption: "FORMATTED_STRING" });
+  return (r.data.values || []).map((x, i) => ({ dong: i + 2, ngay: x[COT.ngay] ?? "", dienGiai: x[COT.dienGiai] ?? "",
+    nguoi: x[COT.nguoi] ?? "", hoaDon: x[COT.hoaDon] ?? "", nguonQuy: x[COT.nguonQuy] ?? "", thu: Number(x[COT.thu]) || 0,
+    chi: Number(x[COT.chi]) || 0, ghiChu: x[COT.ghiChu] ?? "", maTin: String(x[COT.maTin] ?? "") })).filter((d) => d.ngay || d.thu || d.chi);
+}
+
 if (path.resolve(process.argv[1] || "") === fileURLToPath(import.meta.url)) {
   (async () => {
     const [cmd, sheetId] = process.argv.slice(2);

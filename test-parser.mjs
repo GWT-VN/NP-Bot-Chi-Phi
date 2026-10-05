@@ -544,8 +544,8 @@ for (const [tag, input, want] of NP_HD_CASES) {
   const it = item(CFG_TRANG, "chi Mua vật tư mẫu 1.250.000đ có hoá đơn đỏ");
   const p = parseEntry(it);
   const rt = p.skip ? p : route(it, p);
-  const got = rt.skip ? `SKIP:${rt.reason}` : `${rt.tab}|${rt.row.length}|${rt.row[4]}|${rt.row[5]}|${rt.row[6]}`;
-  const want = "Sổ chi phí|10|Có||1250000";
+  const got = rt.skip ? `SKIP:${rt.reason}` : `${rt.tab}|${rt.row.length}|${rt.row[4]}|${rt.row[6]}|${rt.row[7]}`;
+  const want = "Sổ chi phí|12|Có||1250000";
   if (got === want) pass++; else fails.push({ tag: "NP-e2e-tin-chuẩn", input: it.content, want, got });
 }
 
@@ -587,9 +587,9 @@ for (const [tag, cfg, input, exp] of USD_CASES.filter(laNP)) {
     const rt = route(it, p);
     if (rt.skip) got = `WARN-route:${rt.reason.split(":")[0]}`;
     else {
-      const tien = rt.row[5] === "" && rt.row[6] === "" ? "Thu/Chi-trống" : `Thu=${rt.row[5]}/Chi=${rt.row[6]}`;
+      const tien = rt.row[6] === "" && rt.row[7] === "" ? "Thu/Chi-trống" : `Thu=${rt.row[6]}/Chi=${rt.row[7]}`;
       // rt.loai = hướng THỰC ghi sổ (kênh Hiền lấy từ cấu hình kênh, kênh Trang từ tiền tố) — không phải p.loai.
-      got = `${rt.tab}|${rt.loai}|${p.noiDung}|$${p.usd?.amount}|${tien}|${rt.row[9]}`;
+      got = `${rt.tab}|${rt.loai}|${p.noiDung}|$${p.usd?.amount}|${tien}|${rt.row[10]}`;
     }
   }
   const want = `${exp.tab}|${exp.loai}|${exp.noiDung}|$${exp.usd}|Thu/Chi-trống|${exp.gc}`;
