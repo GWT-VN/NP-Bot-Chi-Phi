@@ -1,0 +1,14 @@
+{
+  "name": "np-bot-chi-phi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bot Discord ghi sổ chi phí kênh New Projects vào Google Sheet riêng",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node test-books.mjs"
+  },
+  "dependencies": {
+    "googleapis": "^144.0.0"
+  }
+}
