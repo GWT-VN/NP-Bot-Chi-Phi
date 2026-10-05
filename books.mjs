@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Tầng ghi sổ NP: 1 spreadsheet (id trong config.json book.sheetId), tab sổ + _state (dedup msgId ở cột D) + _rep.
-// Mỗi file có tab sổ (Sổ quỹ / Sổ LAD) + tab _state (dedup msgId ở cột D). Import bởi scanner.mjs.
+// Import bởi scanner.mjs (ghi sổ) và test-books.mjs.
 // Export: date helpers · buildFundRow · laLocaleVi/kiemTraLocale · loadProcessed(sheetId) · commit({sheetId,tab,rows,msgIds}).
 
 import { readFileSync } from "node:fs";

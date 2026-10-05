@@ -6,7 +6,7 @@
   "type": "module",
   "engines": { "node": ">=20" },
   "scripts": {
-    "test": "node test-books.mjs"
+    "test": "node test-parser.mjs && node test-books.mjs"
   },
   "dependencies": {
     "googleapis": "^144.0.0"

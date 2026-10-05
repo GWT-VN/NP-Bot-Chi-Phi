@@ -1,0 +1,6 @@
+{
+  "_help": "Cấu hình bot NP. channels: { \"<channelId>\": { \"name\": \"new-projects\" } } — kênh không có ở đây thì bot không đọc. book.sheetId/folderId do setup.mjs điền. persons: { \"<userId Discord>\": \"Tên hiển thị trong cột Người\" } (tuỳ chọn; trống thì lấy tên Discord).",
+  "persons": {},
+  "book": { "label": "Sổ chi phí New Projects", "sheetId": "", "folderId": "", "tab": "Sổ chi phí" },
+  "channels": {}
+}
