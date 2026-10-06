@@ -71,8 +71,8 @@ kênh lạ, xác nhận không phải Reply của chính người gửi.
 (chạy lại không nhân đôi). Thứ đã tạo tay trong "Chi phí" (shortcut báo cáo…) bot không đụng. Hạn chế: `sua_khoan` đổi
 hoá đơn Có↔Không thì ảnh vẫn ở nhánh HĐ cũ — chuyển tay nếu cần.
 
-**Sổ (Google Sheet)** nằm ở gốc My Drive của tài khoản Google bot dùng, không nằm cạnh folder chứng từ — chủ dự án
-chốt để nguyên (2026-10-06). Chuyển chỗ thì ID/link không đổi, bot không cần sửa.
+**Sổ (Google Sheet)** nằm trong `0. OTHERS - NEW BRANDS / Chi phí`, cạnh folder chứng từ (chủ dự án chuyển vào
+2026-10-06). Ai có quyền folder đó thì thấy sổ. Chuyển chỗ thì ID/link không đổi, bot không cần sửa.
 
 **Thêm quỹ:** sửa `config.json` `quy` (MCP đọc lúc khởi động → khởi động lại bot), rồi `node setup.mjs --tab-quy`
 (dựng tab quỹ mới + cập nhật dropdown). Dropdown chỉ **cảnh báo**, không chặn.
