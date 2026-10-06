@@ -23,7 +23,8 @@ gui_quet_bu() {
     sleep 5
     cl=$(pgrep -P $$ -x claude | head -1)   # $$ = shell chính (zsh giữ nguyên trong subshell) → claude của vòng này
     [[ -n $cl ]] && pgrep -P "$cl" -f "npso.mjs" >/dev/null && pgrep -P "$cl" bun >/dev/null || continue
-    sleep 15; tmux send-keys -t np "$QUET_BU" Enter; return
+    # Gõ chữ (-l: nguyên văn) rồi MỚI gửi Enter (C-m) sau 1s — gửi chung một lệnh thì phiên Claude coi Enter là xuống dòng (đo 2026-10-06).
+    sleep 15; tmux send-keys -t np -l "$QUET_BU"; sleep 1; tmux send-keys -t np C-m; return
   done
 }
 while true; do
