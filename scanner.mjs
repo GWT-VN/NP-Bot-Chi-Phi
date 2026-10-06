@@ -335,7 +335,7 @@ const MONEY_ANY = /(\d[\d.,]*\d|\d)\s*(?:(?:(đ|₫|vnđ|vnd)|(tr(?:iệu)?\d*|t
 // KHÔNG gộp trùng: "ăn trưa 23: 130k, 25: 130k" = 2 khoản thật, không phải 1 số lặp lại.
 // `totals` = số đứng ngay sau chữ "tổng" → nhiều số mà có đúng 1 tổng thì lấy tổng (xem parseEntry).
 const TOTAL_BEFORE = /(?:tổng|tổng\s+cộng|tất\s+cả)\s*(?:là|:|=)?\s*$/i;
-function extractAmount(text) {
+export function extractAmount(text) {
   let best = null; const vals = []; const totals = [];
   for (const m of String(text).matchAll(MONEY_ANY)) {
     const cur = m[2], mag = m[3];

@@ -23,9 +23,10 @@ export function taoServer(core) {
   const id = z.string().regex(/^\d{5,25}$/);
   s.registerTool("kiem_tin", { description: "Đọc lại 1 tin trong kênh NP và chạy luật 1–5: đúng luật chưa, thiếu gì (tien_to, so_tien, nhieu_so_tien, anh, hoa_don, quy, quy_mo_ho, noi_dung, so_tien_usd), đã ghi sổ chưa.",
     inputSchema: { chat_id: id, message_id: id } }, boc((a) => core.kiemTin(a)));
-  s.registerTool("ghi_khoan", { description: "Ghi 1 khoản vào sổ. Ghi ngay nếu tin đúng luật VÀ các trường khớp luật; ngược lại BẮT BUỘC xac_nhan_message_id = tin xác nhận của CHÍNH người gửi, gửi sau tin gốc. Tự thả ✅ và gỡ ❓. nguon_quy: có danh_sach_quy thì bắt buộc, lấy đúng tên trong danh sách; danh sách trống thì bỏ trống, hoặc đúng chữ người gửi gõ trong tin.",
+  s.registerTool("ghi_khoan", { description: "Ghi 1 khoản vào sổ theo giá trị BẠN đọc ra từ tin (và ảnh). Ghi ngay nếu chữ tin có bằng chứng: số tiền có trong tin (kể cả dòng tổng), có chữ thu/chi, có ảnh, hoá đơn không trái tin (không nhắc = Không). Thiếu bằng chứng → BẮT BUỘC xac_nhan_message_id = tin Reply của CHÍNH người gửi (số tiền không có trong tin gốc thì phải có trong tin xác nhận hoặc câu hỏi của bạn). ngay (dd/mm/yyyy): ngày chi ghi trong tin, chỉ dùng nếu tin có đúng ngày đó. Tự thả ✅ và gỡ ❓. nguon_quy: có danh_sach_quy thì bắt buộc, lấy đúng tên trong danh sách; danh sách trống thì bỏ trống, hoặc đúng chữ người gửi gõ trong tin.",
     inputSchema: { chat_id: id, message_id: id, loai: z.enum(["thu", "chi"]), so_tien: z.number().int().positive(), noi_dung: z.string().min(1).max(300),
-      hoa_don: z.enum(["Có", "Không"]), nguon_quy: z.string().max(60).optional(), ghi_chu: z.string().max(300).optional(), xac_nhan_message_id: id.optional() } },
+      hoa_don: z.enum(["Có", "Không"]), nguon_quy: z.string().max(60).optional(), ghi_chu: z.string().max(300).optional(), xac_nhan_message_id: id.optional(),
+      ngay: z.string().regex(/^\d{1,2}\/\d{1,2}\/\d{4}$/).optional() } },
   boc((a) => core.ghiKhoan(a)));
   s.registerTool("sua_khoan", { description: "Sửa khoản ĐÃ ghi theo yêu cầu của CHÍNH người gửi khoản (yeu_cau_message_id gửi sau tin gốc). Sửa số tiền thì kèm loai.",
     inputSchema: { chat_id: id, message_id: id, yeu_cau_message_id: id, noi_dung: z.string().min(1).max(300).optional(), loai: z.enum(["thu", "chi"]).optional(),

@@ -49,6 +49,12 @@ tin, để Claude không bịa tên). Chốt danh sách thì điền `quy` → l
 "Tổng hợp - <tab>", chạy lại vô hại), cấp quyền kênh cho bot trên Discord, khởi động lại bot. Vì sao mỗi kênh một tab: tin
 gốc ở kênh đoàn hoạ sĩ yêu cầu "tách riêng"; chủ dự án chọn chung 1 file, mỗi kênh 1 tab (2026-10-06).
 
+**Claude đọc, không so khuôn (chủ dự án chốt 2026-10-06):** bộ đọc luật (`luat.mjs` `kiemLuat`) chỉ còn là gợi ý.
+Claude tự chốt thu/chi, số tiền (dòng tổng), hoá đơn (không nhắc = Không), ngày chi ghi trong tin. Lệnh `ghi_khoan` ghi
+ngay khi có BẰNG CHỨNG trong chữ tin (`bangChung`: số tiền có trong tin, có chữ thu/chi, có ảnh, hoá đơn không trái tin);
+thiếu → phải có Reply của chính người gửi, và số tiền vắng trong tin gốc thì phải có trong tin xác nhận hoặc câu hỏi của bot
+(chặn Claude bị dụ gán số cho tin trò chuyện). Tin đánh dấu "note/ghi chú/không ghi sổ" vẫn chặn cứng.
+
 **Chứng từ (ảnh bill)** — cây kiểu kế toán (chủ dự án chốt 2026-10-06, giống "Lưu chứng từ" của admin), gốc là folder
 "Chứng từ chi phí New Projects (bot NP)" đặt trong `0. OTHERS - NEW BRANDS / Chi phí` (`config.json` `book.folderId`):
 `<tab kênh> / YYYY / MM.YYYY / 01. Có HĐ | 02. Không HĐ | 03. Thu / NN. <diễn giải> / ảnh`. Folder giao dịch tra theo msgId

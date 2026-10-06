@@ -1,7 +1,7 @@
 // Luật 1–5 của NP v2 (HÀM THUẦN) — cổng "ghi ngay hay phải hỏi". Spec v2 §3.
 //   1 tiền tố thu/chi · 2 đúng 1 số tiền · 3 ảnh đính trực tiếp · 4 hoá đơn rõ (Có/Không) · 5 đúng 1 quỹ trong danh sách.
 // Dùng lại parser v1 (scanner.mjs: dungItem/parseEntry, 171 ca test) — KHÔNG viết lại luật đọc số tiền / hoá đơn.
-import { dungItem, parseEntry } from "./scanner.mjs";
+import { dungItem, parseEntry, extractAmount, detectHoaDon } from "./scanner.mjs";
 
 const CHU = "a-z0-9à-ỹđ";
 const thoat = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -60,4 +60,31 @@ export function kiemLuat(msg, { quy = [], channels = {} } = {}) {
     thieu,
     ...(p.skip ? { ly_do: p.reason } : {}),
   }
+}
+
+// ── Bằng chứng cho giá trị CLAUDE đọc ra (chủ dự án 2026-10-06: "đừng theo cơ chế rule đọc nữa, mà claude đọc luôn") ──
+// Claude đọc tin (và ảnh) rồi tự quyết loai/số tiền/hoá đơn/ngày. Lệnh ghi KHÔNG đòi khớp bộ đọc luật nữa, chỉ đòi giá trị
+// có bằng chứng trong CHỮ của tin — để Claude bị dụ cũng không bịa được số. Trả các mã thiếu; rỗng = ghi ngay được.
+const boDau = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
+const coTu = (kd, tu) => new RegExp(`(^|[^a-z])${tu}([^a-z]|$)`).test(kd);
+export function bangChung(msg, { loai, so_tien, hoa_don }, coAnh) {
+  const text = String(msg?.content || "");
+  const thieu = [];
+  if (!(extractAmount(text)?.vals || []).includes(so_tien)) thieu.push("so_tien");   // số phải có trong chữ (kể cả dòng "= tổng")
+  const kd = boDau(text);
+  if (!coTu(kd, loai === "thu" ? "thu" : "chi")) thieu.push("loai");                  // "chi phí", "chi trả"… / "thu"
+  if (!coAnh) thieu.push("anh");
+  const hd = detectHoaDon(text);                                                      // không nhắc = "Không" (luật 4)
+  if (hoa_don !== hd) thieu.push("hoa_don");
+  return thieu;
+}
+
+/** Ngày Claude đọc ra chỉ được dùng khi CHỮ tin có đúng ngày đó (d/m/yyyy, có/không số 0 đầu). */
+export function ngayTrongTin(msg, dmy) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(dmy || "").trim());
+  if (!m) return null;
+  const [d, mo, y] = [Number(m[1]), Number(m[2]), m[3]];
+  for (const x of String(msg?.content || "").matchAll(/(\d{1,2})\/(\d{1,2})\/(\d{4})/g))
+    if (Number(x[1]) === d && Number(x[2]) === mo && x[3] === y) return `${String(d).padStart(2, "0")}/${String(mo).padStart(2, "0")}/${y}`;
+  return null;
 }
