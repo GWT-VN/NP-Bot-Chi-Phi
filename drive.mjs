@@ -153,15 +153,18 @@ export async function archiveTransaction(drive, rootId, { quy = null, loai = nul
 }
 
 // ── Cây chứng từ NP kiểu KẾ TOÁN (chủ dự án 2026-10-06, giống "Lưu chứng từ" của admin) ─────────────
-// <gốc = folder mới trong "0. OTHERS - NEW BRANDS / Chi phí"> / <kênh> / YYYY / MM.YYYY / 01. Có HĐ | 02. Không HĐ | 03. Thu
-//   / NN. <diễn giải> / ảnh.  <kênh> = tên tab sổ của kênh (mỗi kênh một tab, một nhánh chứng từ).
+// <gốc = folder mới trong "0. OTHERS - NEW BRANDS / Chi phí"> / <kênh> / 01. Có HĐ | 02. Không HĐ | 03. Thu / YYYY
+//   / MM.YYYY / DD.MM.YYYY / NN. <diễn giải> / ảnh. Nhóm HĐ đứng TRÊN thời gian (chủ dự án chốt 2026-10-06): kế toán
+//   gom chứng từ theo có/không hoá đơn trước, rồi mới lần theo ngày.  <kênh> = tên tab sổ của kênh (mỗi kênh một tab, một nhánh chứng từ).
 // Thu không có Có/Không HĐ (sổ ghi "—") → nhánh riêng 03. Thu.
 export function duongChungTu({ kenh, loai, hoaDon, dmy }) {
   if (!kenh) throw new Error("thiếu kênh — không biết lưu chứng từ vào nhánh nào");
-  const [, mm, yyyy] = String(dmy || "").split("/");
-  const thoiGian = mm && yyyy ? [yyyy, `${mm}.${yyyy}`] : ["khong-ro-ngay"];
+  const [d, m, yyyy] = String(dmy || "").split("/");
+  // Đệm 0 bắt buộc: Drive sắp theo CHỮ, "8.9.2026" sẽ đứng sau "10.9.2026".
+  const dd = String(d || "").padStart(2, "0"), mm = String(m || "").padStart(2, "0");
+  const thoiGian = d && m && yyyy ? [yyyy, `${mm}.${yyyy}`, `${dd}.${mm}.${yyyy}`] : ["khong-ro-ngay"];
   const nhom = loai === "thu" ? "03. Thu" : hoaDon === "Có" ? "01. Có HĐ" : "02. Không HĐ";
-  return [kenh, ...thoiGian, nhom];
+  return [kenh, nhom, ...thoiGian];
 }
 
 export async function luuChungTu(drive, rootId, { kenh, loai, hoaDon, dmy, msgId, desc, buffers, anhMsgId = null }) {

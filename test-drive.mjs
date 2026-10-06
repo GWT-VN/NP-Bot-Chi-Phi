@@ -5,21 +5,25 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { duongChungTu } from "./drive.mjs";
 
-test("chi có hoá đơn đỏ → <kênh>/2026/10.2026/01. Có HĐ", () => {
+test("chi có hoá đơn đỏ → <kênh>/01. Có HĐ/2026/10.2026/05.10.2026", () => {
   assert.deepEqual(duongChungTu({ kenh: "Đoàn hoạ sĩ TQ T10-2026", loai: "chi", hoaDon: "Có", dmy: "05/10/2026" }),
-    ["Đoàn hoạ sĩ TQ T10-2026", "2026", "10.2026", "01. Có HĐ"]);
+    ["Đoàn hoạ sĩ TQ T10-2026", "01. Có HĐ", "2026", "10.2026", "05.10.2026"]);
 });
 test("chi không hoá đơn → 02. Không HĐ", () => {
   assert.deepEqual(duongChungTu({ kenh: "Chi phí chung", loai: "chi", hoaDon: "Không", dmy: "31/12/2026" }),
-    ["Chi phí chung", "2026", "12.2026", "02. Không HĐ"]);
+    ["Chi phí chung", "02. Không HĐ", "2026", "12.2026", "31.12.2026"]);
 });
 test("thu → 03. Thu (không thuộc Có/Không HĐ)", () => {
   assert.deepEqual(duongChungTu({ kenh: "Chi phí chung", loai: "thu", hoaDon: "—", dmy: "01/11/2026" }),
-    ["Chi phí chung", "2026", "11.2026", "03. Thu"]);
+    ["Chi phí chung", "03. Thu", "2026", "11.2026", "01.11.2026"]);
 });
 test("thiếu ngày → thư mục 'khong-ro-ngay' (không đoán tháng)", () => {
   assert.deepEqual(duongChungTu({ kenh: "Chi phí chung", loai: "chi", hoaDon: "Không", dmy: "" }),
-    ["Chi phí chung", "khong-ro-ngay", "02. Không HĐ"]);
+    ["Chi phí chung", "02. Không HĐ", "khong-ro-ngay"]);
+});
+test("ngày 1 chữ số (8/9/2026) → folder đệm 0: 09.2026 / 08.09.2026 (Drive sắp theo chữ)", () => {
+  assert.deepEqual(duongChungTu({ kenh: "Chi phí chung", loai: "chi", hoaDon: "Không", dmy: "8/9/2026" }),
+    ["Chi phí chung", "02. Không HĐ", "2026", "09.2026", "08.09.2026"]);
 });
 test("thiếu kênh → lỗi rõ (không ném chứng từ vào gốc)", () => {
   assert.throws(() => duongChungTu({ loai: "chi", hoaDon: "Không", dmy: "05/10/2026" }), /kênh/);
