@@ -1,8 +1,8 @@
 # NP Bot Chi Phí (v2)
 
 Bot Discord riêng của server **New Projects** (2 kênh: `#chi-phí` và `#chi-phí-tiếp-đoàn-hoạ-sĩ-trung-quốc-tháng-10-2026`; mỗi kênh một tab sổ trong cùng file), chạy 24/7 trên Mac mini như Bắp (Claude Code + plugin Discord). Claude
-đọc tin, hỏi lại khi thiếu hoặc chưa rõ, trả lời câu hỏi về sổ. **Ghi sổ chỉ đi qua MCP `npso`**, và MCP này ép luật
-1–5 cùng điều kiện "chính người gửi xác nhận". Không có lệnh xoá.
+đọc tin, hỏi lại khi thiếu hoặc chưa rõ, trả lời câu hỏi về sổ. **Ghi sổ chỉ đi qua MCP `npso`**. Luật 1–5 là chuẩn
+nội dung để Claude đối chiếu (xem "Claude đọc" bên dưới), MCP chỉ chặn dữ liệu không hợp lệ. Không có lệnh xoá.
 
 - Spec (vì sao làm thế này): `docs/superpowers/specs/2026-10-05-np-bot-chi-phi-design.md`
 - Plan v2: `docs/superpowers/plans/2026-10-05-np-bot-v2.md` · Bản ghim kênh: `HUONG-DAN-NHAN-TIN.md`
@@ -12,7 +12,7 @@ Bot Discord riêng của server **New Projects** (2 kênh: `#chi-phí` và `#chi
 | Phần | Vai trò |
 |---|---|
 | `luat.mjs` | Luật 1–5 + nhận nguồn quỹ (tên chuẩn + tên gọi tắt trong `config.json` `quy`) |
-| `so-core.mjs` | 5 lệnh: `kiem_tin`, `ghi_khoan`, `sua_khoan`, `doc_so`, `tin_chua_xu_ly`. Tự đọc lại tin gốc; lệch luật thì bắt buộc có tin xác nhận cùng tác giả, gửi sau, **Reply** vào tin gốc hoặc câu hỏi của bot; ✅ chỉ sau khi ghi |
+| `so-core.mjs` | 5 lệnh: `kiem_tin`, `ghi_khoan`, `sua_khoan`, `doc_so`, `tin_chua_xu_ly`. Tự đọc lại tin gốc; chặn giá trị ngoài danh sách / tin đã ghi; xác nhận (nếu Claude gửi kèm) phải là **Reply** của chính người gửi; trả `tham_chieu` khi Claude chốt khác bộ đọc luật; ✅ chỉ sau khi ghi |
 | `mcp/npso.mjs` | Vỏ MCP, nối Discord REST (token ở `~/.claude/channels/discord-np/.env`), `books.mjs` (Sheet 12 cột A–L), `drive.mjs` |
 | `bot/` | Thư mục làm việc của phiên Claude bot: `CLAUDE.md` (vai trò + quy trình), `bot-settings.json` (quyền), `hooks/` |
 | `mac/` | `start-bot.sh` (tmux `np`), `watchdog.sh`, `stop-bot.sh`, `cai-launchd.sh` (`com.gwt.np.watchdog`) |
@@ -41,19 +41,29 @@ Code dùng lại từ `GWT-Admin-Portal bots/xet-duyet-chi-phi@da1b637`. Bản v
 `tmux kill-session -t np && launchctl kickstart gui/$(id -u)/com.gwt.np.watchdog`. Code mới: `git pull` **trên màn
 hình** Mac mini (SSH không mở được Keychain), rồi khởi động lại.
 
-**Quỹ chưa chốt (`quy: []`):** luật 5 tắt. Quỹ không bắt buộc; có nhắc thì ghi đúng chữ người gõ (lõi kiểm chữ đó nằm trong
-tin, để Claude không bịa tên). Chốt danh sách thì điền `quy` → luật 5 bật lại, quỹ bắt buộc và phải đúng danh sách.
+**Quỹ** (chị Tuyết Trang đặt 2026-10-06): `GWT - TK Công ty` · `GWT - Tiền mặt` · `Thuỷ` · `Cá nhân ứng`. Có danh sách →
+quỹ bắt buộc, phải đúng tên trong danh sách (`quy: []` thì không bắt buộc). **Cá nhân ứng** = người gửi trả bằng tiền
+cá nhân, công ty hoàn sau: sổ tự ghi M "Đã hoàn ứng: Chưa"; công ty trả thì người quản lý đổi "Đã hoàn" + ngày ở N, và
+khoản công ty trả được nhắn như khoản chi thường từ quỹ trả (tồn quỹ đó mới giảm). Hoá đơn có thêm **Chờ xuất**.
+
+**Tab tự tính** (`node setup.mjs --tab-quy`, chạy lại vô hại; thêm kênh/quỹ → chạy lại): `Quỹ <tên>` (tồn riêng từng
+quỹ, gộp mọi kênh), `Cá nhân ứng chờ hoàn` (chưa hoàn lên trước + bảng công ty đang nợ ai), `Tổng hợp quỹ`. Bot chỉ ghi
+tab kênh; các tab này là công thức (khoá cảnh báo) — vì sao: một chỗ ghi, xem được theo dự án lẫn theo quỹ mà không nhập
+2 lần, thêm kênh/quỹ chỉ thêm 1 tab. Chip Drive đi qua công thức chỉ còn chữ → bot ghi thêm URL vào cột O (ẩn) để tab
+quỹ dựng lại link bấm được. Thứ tự cột tab kênh: A–L như cũ (người đã chỉnh form), M Đã hoàn ứng · N Ngày hoàn · O URL
+(thêm sau Mã tin để không xô form). Dòng mới chép định dạng dòng ngay trên + link thành chip.
 
 **Thêm kênh:** thêm `{ "<id>": { "name": "...", "tab": "<tên tab>" } }` vào `config.json` `channels` + nhóm kênh vào
 `~/.claude/channels/discord-np/access.json` (`requireMention:false`), chạy `node setup.mjs --tab-kenh` (thêm tab sổ +
 "Tổng hợp - <tab>", chạy lại vô hại), cấp quyền kênh cho bot trên Discord, khởi động lại bot. Vì sao mỗi kênh một tab: tin
 gốc ở kênh đoàn hoạ sĩ yêu cầu "tách riêng"; chủ dự án chọn chung 1 file, mỗi kênh 1 tab (2026-10-06).
 
-**Claude đọc, không so khuôn (chủ dự án chốt 2026-10-06):** bộ đọc luật (`luat.mjs` `kiemLuat`) chỉ còn là gợi ý.
-Claude tự chốt thu/chi, số tiền (dòng tổng), hoá đơn (không nhắc = Không), ngày chi ghi trong tin. Lệnh `ghi_khoan` ghi
-ngay khi có BẰNG CHỨNG trong chữ tin (`bangChung`: số tiền có trong tin, có chữ thu/chi, có ảnh, hoá đơn không trái tin);
-thiếu → phải có Reply của chính người gửi, và số tiền vắng trong tin gốc thì phải có trong tin xác nhận hoặc câu hỏi của bot
-(chặn Claude bị dụ gán số cho tin trò chuyện). Tin đánh dấu "note/ghi chú/không ghi sổ" vẫn chặn cứng.
+**Claude đọc, luật là tham chiếu (chủ dự án chốt 2026-10-06: "luật cứng chỉ dùng để Claude phân tích"):** khoản vẫn
+phải rõ 5 ý (thu/chi · số tiền · ảnh · hoá đơn · quỹ), nhưng người đối chiếu là Claude: đọc cả tin + ảnh, đủ thì ghi, thiếu
+hoặc chưa rõ thì hỏi lại. Bộ đọc luật (`kiemLuat`, `bangChung`) không chặn nữa — `kiem_tin` trả làm gợi ý, `ghi_khoan`
+trả `tham_chieu` khi giá trị Claude chốt khác chữ tin để Claude tự soát. Cái giá: trước đây lệnh chặn Claude gán số không
+có trong tin (review C1); nay dựa vào Claude + người quản lý soát sổ. Lệnh vẫn chặn: giá trị ngoài danh sách, tin đã ghi,
+kênh lạ, xác nhận không phải Reply của chính người gửi.
 
 **Chứng từ (ảnh bill)** — cây kiểu kế toán (chủ dự án chốt 2026-10-06, giống "Lưu chứng từ" của admin), gốc là folder
 "Chứng từ chi phí New Projects (bot NP)" đặt trong `0. OTHERS - NEW BRANDS / Chi phí` (`config.json` `book.folderId`):
@@ -64,8 +74,8 @@ hoá đơn Có↔Không thì ảnh vẫn ở nhánh HĐ cũ — chuyển tay n�
 **Sổ (Google Sheet)** nằm ở gốc My Drive của tài khoản Google bot dùng, không nằm cạnh folder chứng từ — chủ dự án
 chốt để nguyên (2026-10-06). Chuyển chỗ thì ID/link không đổi, bot không cần sửa.
 
-**Thêm quỹ:** sửa `config.json` `quy` (MCP đọc lúc khởi động → khởi động lại bot), và thêm vào dropdown cột F trên
-Sheet (Data validation). Dropdown chỉ **cảnh báo**, không chặn: quên sửa dropdown thì bot vẫn ghi được.
+**Thêm quỹ:** sửa `config.json` `quy` (MCP đọc lúc khởi động → khởi động lại bot), rồi `node setup.mjs --tab-quy`
+(dựng tab quỹ mới + cập nhật dropdown). Dropdown chỉ **cảnh báo**, không chặn.
 
 ## Lệnh
 
