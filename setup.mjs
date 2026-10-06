@@ -219,6 +219,9 @@ async function taoTabQuy(cfg) {
     for (let c = 0; c < Math.max(k.rong.length, 16); c++) reqs.push(cot(g, c, { pixelSize: k.rong[c] ?? 100, hiddenByUser: k.an.includes(c) }, "pixelSize,hiddenByUser"));
     reqs.push(trai(g, 1));
     if (!k.header.length) reqs.push(dam(g, 1)); // tab tổng hợp: dòng 2 là nhãn cột do QUERY sinh
+    // Tab bảng: chữ dài CẮT trong ô (mặc định là tràn sang ô trống bên cạnh — link chứng từ đè lên cột Ghi chú,
+    // chủ dự án báo 2026-10-06). Tab tổng hợp giữ tràn để tiêu đề bảng hiện đủ.
+    else reqs.push({ repeatCell: { range: { sheetId: g, startRowIndex: 1, endRowIndex: 1000 }, cell: { userEnteredFormat: { wrapStrategy: "CLIP" } }, fields: "userEnteredFormat.wrapStrategy" } });
     if (!(ds.find((x) => x.properties.sheetId === g)?.protectedRanges || []).length)
       reqs.push({ addProtectedRange: { protectedRange: { range: { sheetId: g }, description: "Tab tự tính từ các tab kênh — sửa ở tab kênh", warningOnly: true } } });
   }
