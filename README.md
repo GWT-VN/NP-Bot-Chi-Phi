@@ -57,7 +57,7 @@ thiếu → phải có Reply của chính người gửi, và số tiền vắng
 
 **Chứng từ (ảnh bill)** — cây kiểu kế toán (chủ dự án chốt 2026-10-06, giống "Lưu chứng từ" của admin), gốc là folder
 "Chứng từ chi phí New Projects (bot NP)" đặt trong `0. OTHERS - NEW BRANDS / Chi phí` (`config.json` `book.folderId`):
-`<tab kênh> / 01. Có HĐ | 02. Không HĐ | 03. Thu / YYYY / MM.YYYY / DD.MM.YYYY / NN. <diễn giải> / ảnh`. Folder giao dịch tra theo msgId
+`<tab kênh> / <quỹ> / 01. Có HĐ | 02. Không HĐ | 03. Thu / YYYY / MM.YYYY / DD.MM.YYYY / NN. <diễn giải> / ảnh`. Folder giao dịch tra theo msgId
 (chạy lại không nhân đôi). Thứ đã tạo tay trong "Chi phí" (shortcut báo cáo…) bot không đụng. Hạn chế: `sua_khoan` đổi
 hoá đơn Có↔Không thì ảnh vẫn ở nhánh HĐ cũ — chuyển tay nếu cần.
 

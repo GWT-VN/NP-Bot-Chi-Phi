@@ -117,7 +117,7 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     const ngay = ngayTrongTin(m, a.ngay) || luat.ngay || toDMY(ngayVN(m.timestamp));
     const dau = [];
     let anh = "";
-    try { anh = await drive.luuAnh({ msgs: [m, xn].filter(Boolean), loai: a.loai, ngay, noiDung: a.noi_dung, kenh, hoaDon: a.hoa_don }) } catch (e) { dau.push(`chưa lưu được ảnh chứng từ lên Drive (${String(e?.message ?? e).slice(0, 80)})`) }
+    try { anh = await drive.luuAnh({ msgs: [m, xn].filter(Boolean), loai: a.loai, ngay, noiDung: a.noi_dung, kenh, quy: a.nguon_quy, hoaDon: a.hoa_don }) } catch (e) { dau.push(`chưa lưu được ảnh chứng từ lên Drive (${String(e?.message ?? e).slice(0, 80)})`) }
     // Có ảnh mà không ra link (lỗi Drive / ảnh quá lớn / tải hỏng) → phải để lại dấu trong sổ, không im lặng (review I3).
     if (coAnh && !anh && !dau.length) dau.push("chưa lưu được ảnh chứng từ lên Drive");
     const ghiChu = [a.ghi_chu || luat.ghi_chu || "", !coAnh ? "không có ảnh chứng từ (đã xác nhận)" : "", coAnh && !anh ? "chưa lưu được ảnh chứng từ" : "",

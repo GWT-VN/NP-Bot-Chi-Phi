@@ -18,5 +18,34 @@
     }
   },
   "guildId": "1511385195155165449",
-  "quy": []
+  "quy": [
+    {
+      "ten": "GWT - TK Công ty",
+      "goiTat": [
+        "GWT-TK Công ty",
+        "GWT - TK Cty",
+        "GWT-TK Cty",
+        "TK Công ty",
+        "TK Cty",
+        "tài khoản công ty"
+      ]
+    },
+    {
+      "ten": "GWT - Tiền mặt",
+      "goiTat": [
+        "GWT-Tiền mặt",
+        "GWT - TM",
+        "GWT-TM",
+        "tiền mặt"
+      ]
+    },
+    {
+      "ten": "Thuỷ",
+      "goiTat": [
+        "Thủy",
+        "quỹ Thuỷ",
+        "quỹ Thủy"
+      ]
+    }
+  ]
 }

@@ -116,10 +116,10 @@ export async function taoCoreThat() {
     },
     drive: {
       // Cây kế toán (2026-10-06): <folderId> / <tab kênh> / YYYY / MM.YYYY / Có HĐ | Không HĐ | Thu / NN. <diễn giải>
-      luuAnh: async ({ msgs, loai, ngay, noiDung, kenh, hoaDon }) => {
+      luuAnh: async ({ msgs, loai, ngay, noiDung, kenh, quy, hoaDon }) => {
         const buffers = await taiAnh(msgs);
         if (!buffers.length || !folderId) return "";
-        return drive.luuChungTu(drive.getDrive(), folderId, { kenh: tab(kenh), loai, hoaDon, dmy: ngay, msgId: msgs[0].id, desc: noiDung, buffers });
+        return drive.luuChungTu(drive.getDrive(), folderId, { kenh: tab(kenh), quy, loai, hoaDon, dmy: ngay, msgId: msgs[0].id, desc: noiDung, buffers });
       },
     } });
 }

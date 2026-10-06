@@ -277,6 +277,11 @@ test("[chứng từ] luuAnh nhận kênh của tin + hoá đơn đã chốt (kh�
   await t.so.ghiKhoan(DUNG)
   assert.equal(t.anh[0].kenh, KENH); assert.equal(t.anh[0].hoaDon, "Có"); assert.equal(t.anh[0].loai, "chi")
 })
+test("[chứng từ] luuAnh nhận quỹ đã chốt (folder Kênh → Quỹ → HĐ, 2026-10-06)", async () => {
+  const t = dung([goc])
+  await t.so.ghiKhoan(DUNG)
+  assert.equal(t.anh[0].quy, DUNG.nguon_quy)
+})
 
 // ── Claude ĐỌC tin và quyết định (chủ dự án 2026-10-06: "đừng theo cơ chế rule đọc nữa, mà claude đọc luôn") ──────────
 // Bộ đọc luật chỉ còn là GỢI Ý. Lệnh ghi ngay khi giá trị Claude đưa có BẰNG CHỨNG trong tin: số tiền có trong chữ, chữ
