@@ -1,6 +1,6 @@
 // Test tầng ghi sổ NP (offline, không mạng) — chạy: node test-books.mjs (exit 0 = đạt).
 import assert from "node:assert/strict";
-import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin } from "./books.mjs";
+import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, dongTuRange, yeuCauTheoForm } from "./books.mjs";
 
 let n = 0;
 const t = (ten, fn) => { fn(); n++; console.log("  ✓ " + ten); };
@@ -39,4 +39,25 @@ t("laLocaleVi: chỉ nhận vi", () => {
   assert.equal(laLocaleVi(""), false);
   assert.equal(laLocaleVi(undefined), false);
 });
+// Form sổ do NGƯỜI chỉnh trên Sheet (chủ dự án 2026-10-06): dòng mới chép định dạng dòng ngay trên + link chứng từ là chip Drive.
+t("dongTuRange: đọc số dòng từ updatedRange của values.append", () => {
+  assert.deepEqual(dongTuRange("'Chi phí chung'!A3:L3"), { dau: 3, cuoi: 3 });
+  assert.deepEqual(dongTuRange("'Đoàn hoạ sĩ TQ T10-2026'!A12:L13"), { dau: 12, cuoi: 13 });
+  assert.equal(dongTuRange(""), null);
+});
+t("yeuCauTheoForm: dòng 3 → chép định dạng dòng 2 (A:L), cột J thành chip Drive", () => {
+  const r = yeuCauTheoForm({ gid: 7, dong: 3, link: "https://drive.google.com/drive/folders/abc" });
+  assert.deepEqual(r[0].copyPaste, { source: { sheetId: 7, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 12 },
+    destination: { sheetId: 7, startRowIndex: 2, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: 12 }, pasteType: "PASTE_FORMAT" });
+  const o = r[1].updateCells;
+  assert.deepEqual(o.range, { sheetId: 7, startRowIndex: 2, endRowIndex: 3, startColumnIndex: 9, endColumnIndex: 10 });
+  assert.equal(o.rows[0].values[0].userEnteredValue.stringValue, "@");
+  assert.equal(o.rows[0].values[0].chipRuns[0].chip.richLinkProperties.uri, "https://drive.google.com/drive/folders/abc");
+});
+t("yeuCauTheoForm: dòng dữ liệu đầu tiên (2) không có dòng mẫu → không chép nhưng vẫn chip; link không phải Drive → giữ chữ", () => {
+  assert.deepEqual(yeuCauTheoForm({ gid: 7, dong: 2, link: "https://drive.google.com/drive/folders/a" }).map((x) => Object.keys(x)[0]), ["updateCells"]);
+  assert.deepEqual(yeuCauTheoForm({ gid: 7, dong: 2, link: "https://example.com/x" }), []);
+  assert.deepEqual(yeuCauTheoForm({ gid: 7, dong: 5, link: "" }).map((x) => Object.keys(x)[0]), ["copyPaste"]);
+});
+
 console.log(`\n${n} test đạt`);

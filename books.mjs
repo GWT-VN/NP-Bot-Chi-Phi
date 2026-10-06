@@ -164,6 +164,26 @@ export async function markRepped(sheetId, entries = []) {
   return { written: rows.length };
 }
 
+// ── Theo FORM người chỉnh trên Sheet (chủ dự án 2026-10-06) ──────────────────
+// values.append chỉ ghi giá trị → dòng mới ra định dạng mặc định, link là URL dài. Người quản lý sổ tự chỉnh form
+// (căn trái, độ rộng, link thành chip Drive) → dòng mới CHÉP ĐỊNH DẠNG của dòng ngay trên, nên đổi form trên Sheet
+// là bot theo luôn, không phải sửa code. Link Drive ghi thành CHIP (hiện tên folder): API đòi chữ "@" + chipRuns.
+export function dongTuRange(r) {
+  const m = /!\$?[A-Z]+\$?(\d+)(?::\$?[A-Z]+\$?(\d+))?$/.exec(String(r || ""));
+  return m ? { dau: Number(m[1]), cuoi: Number(m[2] || m[1]) } : null;
+}
+export function yeuCauTheoForm({ gid, dong, link }) {
+  const hang = (i) => ({ sheetId: gid, startRowIndex: i - 1, endRowIndex: i, startColumnIndex: 0, endColumnIndex: 12 });
+  // Dòng dữ liệu đầu tiên (2) không có dòng mẫu → không chép định dạng (chép từ tiêu đề là ra chữ đậm).
+  const reqs = dong > 2 ? [{ copyPaste: { source: hang(dong - 1), destination: hang(dong), pasteType: "PASTE_FORMAT" } }] : [];
+  if (/^https:\/\/(drive|docs)\.google\.com\//.test(String(link || ""))) reqs.push({ updateCells: {
+    range: { sheetId: gid, startRowIndex: dong - 1, endRowIndex: dong, startColumnIndex: COT.link, endColumnIndex: COT.link + 1 },
+    rows: [{ values: [{ userEnteredValue: { stringValue: "@" }, chipRuns: [{ startIndex: 0, chip: { richLinkProperties: { uri: link } } }] }] }],
+    fields: "userEnteredValue,chipRuns",
+  } });
+  return reqs;
+}
+
 // ── commit: ghi 1 sheet (1 tab) + đánh dấu đã xử lý ──────────────────────────
 export async function commit({ sheetId, tab, rows = [], msgIds = [] }) {
   const sheets = sheetsApi();
@@ -173,12 +193,23 @@ export async function commit({ sheetId, tab, rows = [], msgIds = [] }) {
     // vừa async vừa biết sheetId. Hỏi hỏng (mất quyền / Sheets 5xx) → ném → scanner không ✅, quét lại
     // lượt sau. Thà không ghi còn hơn ghi "#ERROR!" đè lên sổ thật.
     const localized = localizeRows(rows, await argSepFor(sheetId));
-    await sheets.spreadsheets.values.append({
+    const ap = await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId, range: `${tab}!A1`,
       valueInputOption: "USER_ENTERED", insertDataOption: "OVERWRITE",
       requestBody: { values: localized },
     });
     written[tab] = rows.length;
+    // Định dạng theo form: dòng ĐÃ vào sổ rồi → lỗi ở đây chỉ để lại dòng thô, KHÔNG được ném (ném = bot tưởng chưa ghi,
+    // ghi lại thành 2 dòng).
+    try {
+      const r = dongTuRange(ap?.data?.updates?.updatedRange);
+      if (r) {
+        const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties(sheetId,title)" });
+        const gid = meta.data.sheets.find((x) => x.properties.title === tab)?.properties?.sheetId;
+        const reqs = gid == null ? [] : rows.flatMap((row, i) => yeuCauTheoForm({ gid, dong: r.dau + i, link: row[COT.link] }));
+        if (reqs.length) await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: reqs } });
+      }
+    } catch (e) { written.canhBaoForm = String(e?.message ?? e).slice(0, 120); }
   }
   // Ghi ĐỦ 4 cột vào A:D — KHÔNG append thẳng vào D:D.
   // `values.append` dùng range để DÒ BẢNG, rồi ghi từ cột ĐẦU CỦA BẢNG, không phải cột đầu của range.

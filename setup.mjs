@@ -19,10 +19,11 @@ export const TAI_KHOAN = "ai@gwt.vn";
 // Cột B phải là NGÀY thật (bot ghi dd/mm/yyyy USER_ENTERED ở locale vi_VN) thì year()/month() mới chạy.
 // Sổ v2: E Hoá đơn đỏ · F Nguồn quỹ · G Thu · H Chi. Mỗi kênh một tab sổ → tổng hợp trỏ đúng tab đó (2026-10-06).
 export function keHoachTongHop(tab) {
-  const loc = `'${tab}'!B2:H`;
+  const loc = `'${tab}'!B2:H`, c = (cot) => `'${tab}'!${cot}2:${cot}`;
   return {
     A1: "Theo tháng",
-    A2: `=IFERROR(QUERY(${loc}; "select year(B), month(B)+1, sum(G), sum(H), count(H) where B is not null group by year(B), month(B)+1 order by year(B), month(B)+1 label year(B) 'Năm', month(B)+1 'Tháng', sum(G) 'Tổng thu', sum(H) 'Tổng chi', count(H) 'Số khoản chi'"; 0); "Chưa có dữ liệu")`,
+    // Thu/Chi đọc qua N() trong mảng ('\\' = ngăn cột ở vi_VN): cột Thu trống hoàn toàn thì QUERY coi là cột chữ và sum ra #VALUE!.
+    A2: `=IFERROR(QUERY({${c("B")}\\ARRAYFORMULA(N(${c("G")}))\\ARRAYFORMULA(N(${c("H")}))\\ARRAYFORMULA(--(N(${c("H")})>0))}; "select year(Col1), month(Col1)+1, sum(Col2), sum(Col3), sum(Col4) where Col1 is not null group by year(Col1), month(Col1)+1 order by year(Col1), month(Col1)+1 label year(Col1) 'Năm', month(Col1)+1 'Tháng', sum(Col2) 'Tổng thu', sum(Col3) 'Tổng chi', sum(Col4) 'Số khoản chi'"; 0); "Chưa có dữ liệu")`,
     G1: "Chi theo hoá đơn đỏ (Có / Không)",
     G2: `=IFERROR(QUERY(${loc}; "select year(B), month(B)+1, sum(H) where B is not null and H is not null group by year(B), month(B)+1 pivot E label year(B) 'Năm', month(B)+1 'Tháng'"; 0); "Chưa có dữ liệu")`,
     M1: "Chi theo nguồn quỹ",
