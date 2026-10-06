@@ -1,6 +1,6 @@
 // Test kế hoạch dựng Sheet (offline) — chạy: node test-setup.mjs (exit 0 = đạt).
 import assert from "node:assert/strict";
-import { keHoachSo, keHoachTongHop, keHoachTabKenh, keHoachTabQuy, TAI_KHOAN } from "./setup.mjs";
+import { keHoachSo, keHoachTongHop, keHoachTabKenh, keHoachTabQuy, rongTheoForm, TAI_KHOAN } from "./setup.mjs";
 import { buildFundRow } from "./books.mjs";
 
 const k = keHoachSo({ quy: [{ ten: "Quỹ công ty", goiTat: ["qct"] }, { ten: "Tiền cá nhân ứng", goiTat: [] }] });
@@ -87,6 +87,14 @@ t("tab Cá nhân ứng: chỉ dòng Chi của nguồn Cá nhân ứng, 'Chưa' l
 t("Tổng hợp quỹ: thu/chi/tồn theo quỹ + chi theo tháng × quỹ", () => {
   const k = KQ[3];
   assert.match(k.o.A2, /group by Col6/); assert.match(k.o.F2, /pivot Col6/);
+});
+
+// Form chung = form người chỉnh ở tab "Chi phí chung" (2026-10-06): mặc định 100px, Diễn giải 202, chứng từ 194, Ghi chú 202.
+t("rongTheoForm: độ rộng theo TÊN cột như form tab kênh; tab quỹ dùng đúng bộ đó", () => {
+  assert.deepEqual(rongTheoForm(["STT", "Diễn giải", "Link chứng từ", "Chứng từ", "Ghi chú", "Người"]), [100, 202, 194, 194, 202, 100]);
+  const q = KQ[0];
+  assert.equal(q.rong[q.header.indexOf("Diễn giải")], 202); assert.equal(q.rong[q.header.indexOf("Chứng từ")], 194);
+  assert.equal(q.rong[q.header.indexOf("STT")], 100);
 });
 
 console.log(`\n${n} test đạt`);

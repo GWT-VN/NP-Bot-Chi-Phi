@@ -63,6 +63,10 @@ export function keHoachTabKenh(tenHienCo, channels = {}, book = {}) {
 // Thu/Chi qua N(): cột trống hoàn toàn thì QUERY coi là chữ và sum ra #VALUE! (đo 2026-10-06). Chip Drive đi qua công
 // thức chỉ còn chữ → link bấm dựng lại bằng HYPERLINK từ cột URL ẩn (O ở tab kênh).
 export const CA_NHAN = "Cá nhân ứng";
+// Form chung = form người chỉnh tay ở tab "Chi phí chung" (2026-10-06): cột mặc định 100px, chữ dài rộng hơn.
+// Theo TÊN cột để tab nào có cột cùng nghĩa thì cùng độ rộng.
+const RONG = { "Diễn giải": 202, "Link chứng từ": 194, "Chứng từ": 194, "Ghi chú": 202 };
+export const rongTheoForm = (header) => header.map((h) => RONG[h] ?? 100);
 export function nguonGop(tabs) {
   const khoi = (t) => `HSTACK('${t}'!B2:B;ARRAYFORMULA(IF('${t}'!B2:B="";"";"${t}"));'${t}'!C2:F;ARRAYFORMULA(N('${t}'!G2:G));ARRAYFORMULA(N('${t}'!H2:H));'${t}'!J2:K;'${t}'!M2:O)`;
   return `VSTACK(${tabs.map(khoi).join(";")})`;
@@ -81,7 +85,7 @@ export function keHoachTabQuy({ channels = {}, quy = [] } = {}) {
       o: { A2: STT, B2: q("Col1, Col2, Col3, Col4, Col5, Col7, Col8", w, ord),
         I2: `=ARRAYFORMULA(IF(B2:B="";"";SCAN(0;IFERROR(--G2:G;0)-IFERROR(--H2:H;0);LAMBDA(a;x;a+x))))`,
         J2: LINK, K2: q("Col10, Col9, Col13", w, ord) },
-      ngay: [1], tien: [6, 7, 8], an: [11, 12], rong: [45, 95, 150, 260, 110, 80, 110, 110, 120, 200, 200] });
+      ngay: [1], tien: [6, 7, 8], an: [11, 12] });
   }
   if (quy.some((x) => x.ten === CA_NHAN)) {
     const w = ` and Col6 = '${CA_NHAN}' and Col8 > 0`, ord = " order by Col11, Col1"; // "Chưa" < "Đã hoàn" → chưa hoàn lên trước
@@ -89,13 +93,14 @@ export function keHoachTabQuy({ channels = {}, quy = [] } = {}) {
       header: ["STT", "Người ứng", "Ngày", "Kênh", "Diễn giải", "Số tiền", "Hoá đơn", "Đã hoàn ứng", "Ngày hoàn", "Chứng từ", "Ghi chú", "_tên", "_url", "", "Công ty đang nợ"],
       o: { A2: STT, B2: q("Col4, Col1, Col2, Col3, Col8, Col5, Col11, Col12", w, ord), J2: LINK, K2: q("Col10, Col9, Col13", w, ord),
         O2: `=IFERROR(QUERY(${N}; "select Col4, sum(Col8) where Col1 is not null and Col6 = '${CA_NHAN}' and Col8 > 0 and Col11 <> 'Đã hoàn' group by Col4 label Col4 'Người', sum(Col8) 'Đang nợ'"; 0); "Không còn khoản chờ hoàn")` },
-      ngay: [2, 8], tien: [5, 15], an: [11, 12], rong: [45, 120, 95, 150, 260, 110, 90, 100, 95, 200, 200, 100, 100, 24, 140, 120] });
+      ngay: [2, 8], tien: [5, 15], an: [11, 12] });
   }
   ra.push({ title: "Tổng hợp quỹ", loai: "tonghop", header: [],
     o: { A1: "Theo quỹ (mọi kênh)", F1: "Chi theo tháng × quỹ",
       A2: `=IFERROR(QUERY(${N}; "select Col6, sum(Col7), sum(Col8), sum(Col7)-sum(Col8) where Col1 is not null group by Col6 order by Col6 label Col6 'Quỹ', sum(Col7) 'Tổng thu', sum(Col8) 'Tổng chi', sum(Col7)-sum(Col8) 'Tồn'"; 0); "Chưa có dữ liệu")`,
       F2: `=IFERROR(QUERY(${N}; "select year(Col1), month(Col1)+1, sum(Col8) where Col1 is not null group by year(Col1), month(Col1)+1 pivot Col6 label year(Col1) 'Năm', month(Col1)+1 'Tháng'"; 0); "Chưa có dữ liệu")` },
-    ngay: [], tien: [1, 2, 3, 7, 8, 9, 10, 11, 12], an: [], rong: [150, 120, 120, 120, 24, 60, 60, 120, 120, 120, 120, 120] });
+    ngay: [], tien: [1, 2, 3, 7, 8, 9, 10, 11, 12], an: [] });
+  for (const k of ra) k.rong = rongTheoForm(k.header.length ? k.header : []);
   return ra;
 }
 
@@ -179,13 +184,15 @@ async function taoTabQuy(cfg) {
     rule: { condition: { type: "ONE_OF_LIST", values: vals.map((v) => ({ userEnteredValue: v })) }, strict: false, showCustomUi: true } } });
   const cot = (g, c, props, fields) => ({ updateDimensionProperties: { range: { sheetId: g, dimension: "COLUMNS", startIndex: c, endIndex: c + 1 }, properties: props, fields } });
   const fmt = (g, c, nf) => ({ repeatCell: { range: { sheetId: g, startRowIndex: 1, startColumnIndex: c, endColumnIndex: c + 1 }, cell: { userEnteredFormat: { numberFormat: nf } }, fields: "userEnteredFormat.numberFormat" } });
-  const NGAY = { type: "DATE", pattern: "dd/mm/yyyy" }, TIEN = { type: "NUMBER", pattern: "#,##0;-#,##0;" };
+  const NGAY = { type: "DATE", pattern: "dd/mm/yyyy" }, TIEN = { type: "NUMBER", pattern: "#,##0;-#,##0;" }; // = #,##0 của form, ẩn số 0 (cột Thu qua N())
+  const dam = (g, r) => ({ repeatCell: { range: { sheetId: g, startRowIndex: r, endRowIndex: r + 1 }, cell: { userEnteredFormat: { textFormat: { bold: true } } }, fields: "userEnteredFormat.textFormat.bold" } });
+  const trai = (g, r0) => ({ repeatCell: { range: { sheetId: g, startRowIndex: r0, endRowIndex: 1000 }, cell: { userEnteredFormat: { horizontalAlignment: "LEFT" } }, fields: "userEnteredFormat.horizontalAlignment" } });
   const reqs = [], data = [];
-  // 1) Tab kênh: tiêu đề M:O (giữ chữ đậm như tiêu đề người đã chỉnh), O ẩn, dropdown Hoá đơn / Quỹ / Đã hoàn ứng.
+  // 1) Tab kênh: căn trái cả vùng dữ liệu (form người chỉnh), tiêu đề M:O (giữ chữ đậm như tiêu đề người đã chỉnh), O ẩn, dropdown Hoá đơn / Quỹ / Đã hoàn ứng.
   for (const t of kenh) {
     const g = gid(t);
     data.push({ range: `'${t}'!M1:O1`, values: [["Đã hoàn ứng", "Ngày hoàn", "URL chứng từ"]] });
-    reqs.push({ copyPaste: { source: { sheetId: g, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 1 }, destination: { sheetId: g, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 12, endColumnIndex: 15 }, pasteType: "PASTE_FORMAT" } },
+    reqs.push(trai(g, 1), { copyPaste: { source: { sheetId: g, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 1 }, destination: { sheetId: g, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 12, endColumnIndex: 15 }, pasteType: "PASTE_FORMAT" } },
       cot(g, 14, { hiddenByUser: true }, "hiddenByUser"), fmt(g, 13, NGAY),
       dv(g, 4, ["Có", "Không", "Chờ xuất", "—"]), dv(g, 5, (cfg.quy || []).map((x) => x.ten)), dv(g, 12, ["Chưa", "Đã hoàn"]));
     // URL ẩn cho dòng cũ: lấy từ chip / link của cột J.
@@ -208,9 +215,19 @@ async function taoTabQuy(cfg) {
     for (const [o, v] of Object.entries(k.o)) data.push({ range: `'${k.title}'!${o}`, values: [[v]] });
     k.ngay.forEach((c) => reqs.push(fmt(g, c, NGAY)));
     k.tien.forEach((c) => reqs.push(fmt(g, c, TIEN)));
-    k.rong.forEach((px, c) => reqs.push(cot(g, c, { pixelSize: px, hiddenByUser: k.an.includes(c) }, "pixelSize,hiddenByUser")));
+    // Form chung: độ rộng theo tên cột (cột ngoài tiêu đề về 100 như mặc định), dữ liệu căn trái như tab kênh.
+    for (let c = 0; c < Math.max(k.rong.length, 16); c++) reqs.push(cot(g, c, { pixelSize: k.rong[c] ?? 100, hiddenByUser: k.an.includes(c) }, "pixelSize,hiddenByUser"));
+    reqs.push(trai(g, 1));
+    if (!k.header.length) reqs.push(dam(g, 1)); // tab tổng hợp: dòng 2 là nhãn cột do QUERY sinh
     if (!(ds.find((x) => x.properties.sheetId === g)?.protectedRanges || []).length)
       reqs.push({ addProtectedRange: { protectedRange: { range: { sheetId: g }, description: "Tab tự tính từ các tab kênh — sửa ở tab kênh", warningOnly: true } } });
+  }
+  // 2b) Tab "Tổng hợp - <kênh>" (công thức từ --tab-kenh): cùng form — tiêu đề + nhãn đậm, căn trái, tiền #,##0
+  //     (trừ cột Năm/Tháng A,B · G,H · M,N của 3 bảng).
+  for (const t of kenh.map(tenTongHop)) {
+    const g = gid(t); if (g == null) continue;
+    reqs.push(dam(g, 0), dam(g, 1), trai(g, 1));
+    for (let c = 0; c < 20; c++) if (![0, 1, 6, 7, 12, 13].includes(c)) reqs.push(fmt(g, c, TIEN));
   }
   // 3) Thứ tự tab: kênh → quỹ → cá nhân ứng → tổng hợp quỹ → tổng hợp từng kênh → tab kỹ thuật.
   const thuTu = [...kenh, ...ke.map((k) => k.title), ...kenh.map(tenTongHop), "_state", "_rep"];
