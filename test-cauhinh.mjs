@@ -46,3 +46,12 @@ test("[review M1] scanner.mjs chạy trơn (không cờ) phải TỪ CHỐI — 
   const r = spawnSync(process.execPath, ["scanner.mjs"], { cwd: (await import("node:url")).fileURLToPath(new URL(".", import.meta.url)), env: { ...process.env, DISCORD_BOT_TOKEN: "x" }, encoding: "utf8" });
   assert.notEqual(r.status, 0); assert.match(r.stdout + r.stderr, /v2/);
 });
+
+// Chạy thật 2026-10-06: prompt "Quét bù" truyền lúc khởi động tới TRƯỚC khi npso + plugin Discord kết nối → bot báo
+// "chưa có công cụ", tin cũ không được quét. Phải chờ npso + plugin (bun) lên rồi mới gửi qua tmux.
+test("[khởi động] Quét bù gửi SAU khi npso + plugin Discord đã chạy, không truyền thẳng làm prompt đầu", () => {
+  const sb = doc("./mac/start-bot.sh")
+  assert.match(sb, /tmux send-keys -t np/)
+  assert.match(sb, /npso\.mjs/); assert.match(sb, /bun/)
+  assert.doesNotMatch(sb, /--permission-mode dontAsk \\\n\s*"Quét bù/, "không được truyền Quét bù làm prompt đầu (tới trước MCP)")
+})
