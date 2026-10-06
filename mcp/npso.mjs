@@ -73,12 +73,22 @@ async function taiAnh(msgs) {
   return out;
 }
 
+// Nhiều kênh (2026-10-06): mỗi kênh một tab sổ trong cùng file. Kênh khai `tab` riêng; không khai thì dùng book.tab.
+export function tabCuaKenh(cfg, kenh) {
+  const k = (cfg.channels || {})[String(kenh)];
+  if (!k) throw new Error(`kênh ${kenh} không phải kênh sổ chi phí NP`);
+  const tab = k.tab || cfg.book?.tab;
+  if (!tab) throw new Error(`kênh ${kenh} chưa khai tab sổ trong config.json`);
+  return tab;
+}
+
 export async function taoCoreThat() {
   const cfg = JSON.parse(readFileSync(join(GOC, "config.json"), "utf8"));
   const books = await import("../books.mjs");
   const drive = await import("../drive.mjs");
   const { taoSo } = await import("../so-core.mjs");
-  const { sheetId, tab, folderId } = cfg.book;
+  const { sheetId, folderId } = cfg.book;
+  const tab = (kenh) => tabCuaKenh(cfg, kenh);
   if (!sheetId) throw new Error("config.json chưa có book.sheetId — chạy setup.mjs");
   return taoSo({ cfg,
     discord: {
@@ -98,10 +108,10 @@ export async function taoCoreThat() {
     },
     so: {
       loadProcessed: () => books.loadProcessed(sheetId),
-      commit: async ({ rows, msgIds }) => { await books.kiemTraLocale(sheetId); return books.commit({ sheetId, tab, rows, msgIds }) },
-      timDong: (msgId) => books.timDongTheoMaTin(sheetId, tab, msgId),
-      capNhat: (dong, f) => books.capNhatDong(sheetId, tab, dong, f),
-      docSo: () => books.docSo(sheetId, tab),
+      commit: async ({ rows, msgIds, kenh }) => { await books.kiemTraLocale(sheetId); return books.commit({ sheetId, tab: tab(kenh), rows, msgIds }) },
+      timDong: (msgId, kenh) => books.timDongTheoMaTin(sheetId, tab(kenh), msgId),
+      capNhat: (dong, f, kenh) => books.capNhatDong(sheetId, tab(kenh), dong, f),
+      docSo: (kenh) => books.docSo(sheetId, tab(kenh)),
     },
     drive: {
       luuAnh: async ({ msgs, loai, ngay, noiDung }) => {

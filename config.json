@@ -1,5 +1,5 @@
 {
-  "_help": "Cấu hình bot NP. channels: { \"<channelId>\": { \"name\": \"new-projects\" } } — kênh không có ở đây thì bot không đọc. book.sheetId/folderId do setup.mjs điền. persons: { \"<userId Discord>\": \"Tên hiển thị trong cột Người\" } (tuỳ chọn; trống thì lấy tên Discord). quy: [{ \"ten\": \"Quỹ công ty\", \"goiTat\": [\"qct\", \"quỹ cty\"] }] — tên chuẩn ghi vào cột Nguồn quỹ + các cách gọi tắt hay gõ (luật 5).",
+  "_help": "Cấu hình bot NP. channels: { \"<channelId>\": { \"name\": \"...\", \"tab\": \"<tab sổ riêng của kênh>\" } } (server New Projects; mỗi kênh 1 tab sổ + 1 tab \"Tổng hợp - <tab>\" — dựng bằng node setup.mjs --tab-kenh) — kênh không có ở đây thì bot không đọc. book.sheetId/folderId do setup.mjs điền. persons: { \"<userId Discord>\": \"Tên hiển thị trong cột Người\" } (tuỳ chọn; trống thì lấy tên Discord). quy: [{ \"ten\": \"Quỹ công ty\", \"goiTat\": [\"qct\", \"quỹ cty\"] }] — tên chuẩn ghi vào cột Nguồn quỹ + các cách gọi tắt hay gõ (luật 5).",
   "persons": {},
   "book": {
     "label": "Sổ chi phí New Projects",
@@ -7,7 +7,16 @@
     "folderId": "18QAPVv0JVDjfVmIeyEnJ7iOfrplEEZAA",
     "tab": "Sổ chi phí"
   },
-  "channels": {},
-  "guildId": "1484009253831315456",
+  "channels": {
+    "1511655994252460113": {
+      "name": "chi-phí",
+      "tab": "Chi phí chung"
+    },
+    "1555865072205824091": {
+      "name": "chi-phí-tiếp-đoàn-hoạ-sĩ-trung-quốc-tháng-10-2026",
+      "tab": "Đoàn hoạ sĩ TQ T10-2026"
+    }
+  },
+  "guildId": "1511385195155165449",
   "quy": []
 }

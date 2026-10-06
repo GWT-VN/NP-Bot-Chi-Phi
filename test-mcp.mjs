@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { taoServer } from "./mcp/npso.mjs";
+import { taoServer, tabCuaKenh } from "./mcp/npso.mjs";
 
 async function noi(loi) {
   const [a, b] = InMemoryTransport.createLinkedPair()
@@ -39,4 +39,13 @@ test("schema chặn so_tien không phải số nguyên, loai lạ", async () => 
     const r = await c.callTool({ name: "ghi_khoan", arguments: { chat_id: "1500000000000000900", message_id: "1500000000000000100", loai: "chi", so_tien: 1000, noi_dung: "x", hoa_don: "Không", nguon_quy: "Q", ...a } })
     assert.equal(r.isError, true, JSON.stringify(a))
   }
+})
+
+// Nhiều kênh (2026-10-06): mỗi kênh một tab trong cùng file Sổ chi phí New Projects.
+test("tabCuaKenh: kênh có tab riêng → tab đó; không khai tab → book.tab; kênh lạ / không có tab nào → lỗi", () => {
+  const cfg = { book: { tab: "Sổ chi phí" }, channels: { "1": { name: "a", tab: "Chi phí chung" }, "2": { name: "b" } } }
+  assert.equal(tabCuaKenh(cfg, "1"), "Chi phí chung")
+  assert.equal(tabCuaKenh(cfg, "2"), "Sổ chi phí")
+  assert.throws(() => tabCuaKenh(cfg, "9"), /không phải kênh/)
+  assert.throws(() => tabCuaKenh({ book: {}, channels: { "2": {} } }, "2"), /tab/)
 })

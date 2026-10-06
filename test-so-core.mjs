@@ -244,3 +244,29 @@ test("[chưa có danh sách quỹ] sua_khoan đổi quỹ theo chữ trong tin y
   assert.equal((await t.so.suaKhoan({ chat_id: KENH, message_id: "100", yeu_cau_message_id: "106", nguon_quy: "quỹ B" })).ok, true)
   assert.equal((await t.so.suaKhoan({ chat_id: KENH, message_id: "100", yeu_cau_message_id: "106", nguon_quy: "quỹ C" })).ok, false)
 })
+
+// Nhiều kênh (2026-10-06): mỗi kênh một tab sổ trong cùng file → mọi lệnh đụng sổ phải mang KÊNH của tin xuống tầng sổ.
+test("[nhiều kênh] ghi / tìm dòng / sửa / đọc sổ đều mang kênh của tin", async () => {
+  const KENH2 = "902"
+  const cfg2 = { ...CFG, channels: { ...CFG.channels, [KENH2]: { name: "doan" } } }
+  const goi = []
+  const m2 = msg("200", "chi Mua vật tư mẫu 1.250.000đ có hoá đơn đỏ qct", { channel_id: KENH2 })
+  const yc = tl("201", "sửa lại 735k", "200", { channel_id: KENH2 })
+  const kho = { [`${KENH2}/200`]: m2, [`${KENH2}/201`]: yc }
+  const s = taoSo({ cfg: cfg2, now: () => 0,
+    discord: { layTin: async (ch, id) => kho[`${ch}/${id}`] || null, react: async () => {}, unreact: async () => {} },
+    so: { loadProcessed: async () => new Set(), commit: async (x) => goi.push(["commit", x.kenh]),
+      timDong: async (id, kenh) => { goi.push(["timDong", kenh]); return goi.some((g) => g[0] === "commit") ? 7 : null },
+      capNhat: async (d, f, kenh) => goi.push(["capNhat", kenh]), docSo: async (kenh) => { goi.push(["docSo", kenh]); return [] } },
+    drive: { luuAnh: async () => "" } })
+  assert.equal((await s.ghiKhoan({ ...DUNG, chat_id: KENH2, message_id: "200" })).ok, true)
+  assert.equal((await s.suaKhoan({ chat_id: KENH2, message_id: "200", yeu_cau_message_id: "201", so_tien: 735000, loai: "chi" })).ok, true)
+  await s.docSo({ chat_id: KENH2 })
+  for (const [viec, kenh] of goi) assert.equal(kenh, KENH2, `${viec} phải mang kênh ${KENH2}`)
+  assert.deepEqual([...new Set(goi.map((g) => g[0]))].sort(), ["capNhat", "commit", "docSo", "timDong"])
+})
+
+test("[nhiều kênh] doc_so không kèm chat_id → từ chối (không biết đọc tab nào)", async () => {
+  const r = await dung([]).so.docSo({})
+  assert.equal(r.ok, false); assert.match(r.ly_do, /chat_id/)
+})

@@ -1,6 +1,6 @@
 # NP Bot Chi Phí (v2)
 
-Bot Discord riêng của kênh **New Projects**, chạy 24/7 trên Mac mini như Bắp (Claude Code + plugin Discord). Claude
+Bot Discord riêng của server **New Projects** (2 kênh: `#chi-phí` và `#chi-phí-tiếp-đoàn-hoạ-sĩ-trung-quốc-tháng-10-2026`; mỗi kênh một tab sổ trong cùng file), chạy 24/7 trên Mac mini như Bắp (Claude Code + plugin Discord). Claude
 đọc tin, hỏi lại khi thiếu hoặc chưa rõ, trả lời câu hỏi về sổ. **Ghi sổ chỉ đi qua MCP `npso`**, và MCP này ép luật
 1–5 cùng điều kiện "chính người gửi xác nhận". Không có lệnh xoá.
 
@@ -32,7 +32,7 @@ Code dùng lại từ `GWT-Admin-Portal bots/xet-duyet-chi-phi@da1b637`. Bản v
    **Không** dùng `dmPolicy: "disabled"`: plugin hiểu là bỏ mọi tin.
 4. Google: `/usr/bin/python3 lib/google-dang-nhap.py` (dùng client `~/Bots/.secrets/google-client.json`, đăng nhập
    **ai@gwt.vn**; token Sheet + Drive ở `~/Bots/.secrets/np-google-token.json`).
-5. `config.json`: điền `channels` (kênh NP) và `quy` (tên chuẩn + tên gọi tắt); rồi `node setup.mjs` (tạo Sheet +
+5. `config.json`: điền `channels` (`{ "<id kênh>": { "name", "tab" } }`, mỗi kênh một tab) và `quy`; rồi `node setup.mjs` (tạo Sheet +
    folder Drive, ghi sheetId/folderId).
 6. `npm ci && npm test`, rồi `zsh mac/cai-launchd.sh`. Lần đầu `tmux attach -t np`, chọn "Yes, I trust this folder",
    **Ctrl+B rồi D** để thoát.
@@ -43,6 +43,11 @@ hình** Mac mini (SSH không mở được Keychain), rồi khởi động lại
 
 **Quỹ chưa chốt (`quy: []`):** luật 5 tắt. Quỹ không bắt buộc; có nhắc thì ghi đúng chữ người gõ (lõi kiểm chữ đó nằm trong
 tin, để Claude không bịa tên). Chốt danh sách thì điền `quy` → luật 5 bật lại, quỹ bắt buộc và phải đúng danh sách.
+
+**Thêm kênh:** thêm `{ "<id>": { "name": "...", "tab": "<tên tab>" } }` vào `config.json` `channels` + nhóm kênh vào
+`~/.claude/channels/discord-np/access.json` (`requireMention:false`), chạy `node setup.mjs --tab-kenh` (thêm tab sổ +
+"Tổng hợp - <tab>", chạy lại vô hại), cấp quyền kênh cho bot trên Discord, khởi động lại bot. Vì sao mỗi kênh một tab: tin
+gốc ở kênh đoàn hoạ sĩ yêu cầu "tách riêng"; chủ dự án chọn chung 1 file, mỗi kênh 1 tab (2026-10-06).
 
 **Thêm quỹ:** sửa `config.json` `quy` (MCP đọc lúc khởi động → khởi động lại bot), và thêm vào dropdown cột F trên
 Sheet (Data validation). Dropdown chỉ **cảnh báo**, không chặn: quên sửa dropdown thì bot vẫn ghi được.

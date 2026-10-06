@@ -95,8 +95,10 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
       if (!quyTrongGoc && !coTrongTin(a.nguon_quy, xn)) return tuChoi(quyLa(a.nguon_quy));
     }
     // Dòng đã nằm trong sổ (lần trước ghi dòng xong mà ghi _state lỗi) → KHÔNG thêm dòng, chỉ bù _state (review I1).
-    if (so.timDong && await so.timDong(String(m.id))) {
-      await so.commit({ rows: [], msgIds: [String(m.id)] });
+    // Nhiều kênh (2026-10-06): mỗi kênh một tab — mọi lệnh sổ mang `kenh` để tầng sổ chọn đúng tab.
+    const kenh = String(a.chat_id);
+    if (so.timDong && await so.timDong(String(m.id), kenh)) {
+      await so.commit({ rows: [], msgIds: [String(m.id)], kenh });
       try { await discord.react(String(a.chat_id), String(m.id), "✅") } catch {}
       try { await discord.unreact(String(a.chat_id), String(m.id), "❓") } catch {}
       return { ok: true, da_ghi: "khoản này đã có trong sổ từ lần trước — chỉ bù đánh dấu", canh_bao: [] };
@@ -112,7 +114,7 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
       xn ? `đã xác nhận: ${link(a.chat_id, xn.id)}` : ""].filter(Boolean).join("; ");
     const row = buildFundRow({ loai: a.loai, ngay: dmyIso(ngay) || ngay, dienGiai: a.noi_dung, nguoi: ND(m), hoaDon: a.hoa_don,
       nguonQuy: a.nguon_quy || "", amount: a.so_tien, link: anh, ghiChu, maTin: m.id });
-    await so.commit({ rows: [row], msgIds: [String(m.id)] }); // lỗi → ném lên, KHÔNG ✅
+    await so.commit({ rows: [row], msgIds: [String(m.id)], kenh }); // lỗi → ném lên, KHÔNG ✅
     try { await discord.react(String(a.chat_id), String(m.id), "✅") } catch (e) { dau.push(`không thả được ✅: ${e.message}`) }
     try { await discord.unreact(String(a.chat_id), String(m.id), "❓") } catch {}
     return { ok: true, da_ghi: `${a.loai.toUpperCase()} ${a.so_tien.toLocaleString("vi-VN")}đ · ${a.nguon_quy || "chưa ghi quỹ"} · HĐ ${a.hoa_don} · ${a.noi_dung}`, link_anh: anh || null, canh_bao: dau };
@@ -127,17 +129,18 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     if (sai) return tuChoi(sai);
     if (!batBuocQuy && a.nguon_quy && !coTrongTin(a.nguon_quy, r.xn, m)) return tuChoi(quyLa(a.nguon_quy));
     if ((a.so_tien === undefined) !== (a.loai === undefined)) return tuChoi("sửa số tiền phải kèm cả loai lẫn so_tien");
-    const dong = await so.timDong(String(m.id));
+    const dong = await so.timDong(String(m.id), String(a.chat_id));
     if (!dong) return tuChoi("khoản này chưa ghi sổ (không thấy Mã tin) — dùng ghi_khoan");
     await so.capNhat(dong, { dienGiai: a.noi_dung, hoaDon: a.hoa_don, nguonQuy: a.nguon_quy, loai: a.loai, amount: a.so_tien,
-      ghiChuThem: `sửa theo ${link(a.chat_id, r.xn.id)}` });
+      ghiChuThem: `sửa theo ${link(a.chat_id, r.xn.id)}` }, String(a.chat_id));
     return { ok: true, dong };
   }
 
   async function docSo({ chat_id, tu_ngay, den_ngay, loai } = {}) {
-    if (chat_id && !kenhHopLe(chat_id)) return tuChoi("kênh không phải kênh sổ chi phí NP");
+    if (!chat_id) return tuChoi("cần chat_id của kênh đang hỏi — mỗi kênh một sổ riêng");
+    if (!kenhHopLe(chat_id)) return tuChoi("kênh không phải kênh sổ chi phí NP");
     const tu = dmyIso(tu_ngay), den = dmyIso(den_ngay);
-    const rows = (await so.docSo()).filter((d) => {
+    const rows = (await so.docSo(String(chat_id))).filter((d) => {
       const i = dmyIso(d.ngay);
       return (!tu || (i && i >= tu)) && (!den || (i && i <= den)) && (!loai || (loai === "thu" ? d.thu > 0 : d.chi > 0));
     });
