@@ -270,3 +270,10 @@ test("[nhiều kênh] doc_so không kèm chat_id → từ chối (không biết 
   const r = await dung([]).so.docSo({})
   assert.equal(r.ok, false); assert.match(r.ly_do, /chat_id/)
 })
+
+// Chứng từ kiểu kế toán (2026-10-06): nhánh theo kênh + Có/Không HĐ → lưu ảnh phải biết kênh và hoá đơn ĐÃ CHỐT.
+test("[chứng từ] luuAnh nhận kênh của tin + hoá đơn đã chốt (không phải luật đoán)", async () => {
+  const t = dung([goc])
+  await t.so.ghiKhoan(DUNG)
+  assert.equal(t.anh[0].kenh, KENH); assert.equal(t.anh[0].hoaDon, "Có"); assert.equal(t.anh[0].loai, "chi")
+})

@@ -149,6 +149,29 @@ export async function archiveTransaction(drive, rootId, { quy = null, loai = nul
   segs.push(monthSeg);
   if (loai === "thu") segs.push("01. Thu"); else if (loai === "chi") segs.push("02. Chi");
   const { folderId: parentId } = await ensurePath(drive, rootId, segs);
+  return luuVaoGiaoDich(drive, parentId, { msgId, desc, buffers, anhMsgId });
+}
+
+// ── Cây chứng từ NP kiểu KẾ TOÁN (chủ dự án 2026-10-06, giống "Lưu chứng từ" của admin) ─────────────
+// <gốc = folder mới trong "0. OTHERS - NEW BRANDS / Chi phí"> / <kênh> / YYYY / MM.YYYY / 01. Có HĐ | 02. Không HĐ | 03. Thu
+//   / NN. <diễn giải> / ảnh.  <kênh> = tên tab sổ của kênh (mỗi kênh một tab, một nhánh chứng từ).
+// Thu không có Có/Không HĐ (sổ ghi "—") → nhánh riêng 03. Thu.
+export function duongChungTu({ kenh, loai, hoaDon, dmy }) {
+  if (!kenh) throw new Error("thiếu kênh — không biết lưu chứng từ vào nhánh nào");
+  const [, mm, yyyy] = String(dmy || "").split("/");
+  const thoiGian = mm && yyyy ? [yyyy, `${mm}.${yyyy}`] : ["khong-ro-ngay"];
+  const nhom = loai === "thu" ? "03. Thu" : hoaDon === "Có" ? "01. Có HĐ" : "02. Không HĐ";
+  return [kenh, ...thoiGian, nhom];
+}
+
+export async function luuChungTu(drive, rootId, { kenh, loai, hoaDon, dmy, msgId, desc, buffers, anhMsgId = null }) {
+  if (!rootId || !buffers?.length) return "";
+  const { folderId: parentId } = await ensurePath(drive, rootId, duongChungTu({ kenh, loai, hoaDon, dmy }));
+  return luuVaoGiaoDich(drive, parentId, { msgId, desc, buffers, anhMsgId });
+}
+
+// Folder giao dịch (tra theo msgId) + upload ảnh chưa có — dùng chung cho cả hai kiểu cây.
+async function luuVaoGiaoDich(drive, parentId, { msgId, desc, buffers, anhMsgId = null }) {
   const { folderId } = await ensureTxFolder(drive, parentId, msgId, desc);
   // Ảnh đã có sẵn trong folder (lượt trước lưu Drive xong nhưng commit sổ gãy) → không upload lại.
   const had = new Set();

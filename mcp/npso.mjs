@@ -114,10 +114,11 @@ export async function taoCoreThat() {
       docSo: (kenh) => books.docSo(sheetId, tab(kenh)),
     },
     drive: {
-      luuAnh: async ({ msgs, loai, ngay, noiDung }) => {
+      // Cây kế toán (2026-10-06): <folderId> / <tab kênh> / YYYY / MM.YYYY / Có HĐ | Không HĐ | Thu / NN. <diễn giải>
+      luuAnh: async ({ msgs, loai, ngay, noiDung, kenh, hoaDon }) => {
         const buffers = await taiAnh(msgs);
         if (!buffers.length || !folderId) return "";
-        return drive.archiveTransaction(drive.getDrive(), folderId, { quy: null, loai, dmy: ngay, msgId: msgs[0].id, desc: noiDung, buffers });
+        return drive.luuChungTu(drive.getDrive(), folderId, { kenh: tab(kenh), loai, hoaDon, dmy: ngay, msgId: msgs[0].id, desc: noiDung, buffers });
       },
     } });
 }

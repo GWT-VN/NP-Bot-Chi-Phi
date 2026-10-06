@@ -49,6 +49,12 @@ tin, để Claude không bịa tên). Chốt danh sách thì điền `quy` → l
 "Tổng hợp - <tab>", chạy lại vô hại), cấp quyền kênh cho bot trên Discord, khởi động lại bot. Vì sao mỗi kênh một tab: tin
 gốc ở kênh đoàn hoạ sĩ yêu cầu "tách riêng"; chủ dự án chọn chung 1 file, mỗi kênh 1 tab (2026-10-06).
 
+**Chứng từ (ảnh bill)** — cây kiểu kế toán (chủ dự án chốt 2026-10-06, giống "Lưu chứng từ" của admin), gốc là folder
+"Chứng từ chi phí New Projects (bot NP)" đặt trong `0. OTHERS - NEW BRANDS / Chi phí` (`config.json` `book.folderId`):
+`<tab kênh> / YYYY / MM.YYYY / 01. Có HĐ | 02. Không HĐ | 03. Thu / NN. <diễn giải> / ảnh`. Folder giao dịch tra theo msgId
+(chạy lại không nhân đôi). Thứ đã tạo tay trong "Chi phí" (shortcut báo cáo…) bot không đụng. Hạn chế: `sua_khoan` đổi
+hoá đơn Có↔Không thì ảnh vẫn ở nhánh HĐ cũ — chuyển tay nếu cần.
+
 **Thêm quỹ:** sửa `config.json` `quy` (MCP đọc lúc khởi động → khởi động lại bot), và thêm vào dropdown cột F trên
 Sheet (Data validation). Dropdown chỉ **cảnh báo**, không chặn: quên sửa dropdown thì bot vẫn ghi được.
 
