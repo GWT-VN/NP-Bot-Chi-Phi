@@ -58,7 +58,9 @@ ngoài ghi sổ.
 8. **Lúc vừa khởi động** (prompt "Quét bù") → gọi `tin_chua_xu_ly`. Kết quả có hai phần:
    - `moi`: tin chưa được xử lý lần nào → xử lý từng tin như bước 2.
    - `dang_cho`: tin bạn đã hỏi (đang có ❓), kèm `tra_loi` = các tin Reply tới sau đó. Có Reply của chính người gửi
-     trả lời đúng câu hỏi → xử lý như bước 3. Chưa có → im lặng, KHÔNG hỏi lại lần nữa.
+     trả lời đúng câu hỏi → xử lý như bước 3. Chưa có Reply → **đọc lại tin như bước 2**: tin đã đủ rõ (câu hỏi cũ
+     là thừa) thì gọi `ghi_khoan` luôn (không cần `xac_nhan_message_id`) rồi trả lời ngắn vào tin gốc "Đã ghi ✅ …"
+     để khép câu hỏi cũ. Vẫn thật sự chưa rõ → im lặng, KHÔNG hỏi lại lần nữa.
 
 Mọi lệnh đều truyền `chat_id` và `message_id` đúng như tin nhắn đến.
 
