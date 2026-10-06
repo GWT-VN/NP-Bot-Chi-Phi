@@ -7,7 +7,7 @@ const t = (ten, fn) => { fn(); n++; console.log("  ✓ " + ten); };
 
 t("dòng chi có hoá đơn đỏ: 12 cột A–L (Nguồn quỹ F, Mã tin L), Chi có số, Thu trống", () => {
   const r = buildFundRow({ loai: "chi", ngay: "2026-10-05", dienGiai: "Mua vật tư mẫu", nguoi: "Lan", hoaDon: "Có", nguonQuy: "Quỹ công ty", amount: 1250000, link: "https://drive/x", ghiChu: "dự án X", maTin: "1500" });
-  assert.equal(r.length, 12);
+  assert.equal(r.length, 15);
   assert.deepEqual([r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[9], r[10], r[11]],
     ["=ROW()-1", "05/10/2026", "Mua vật tư mẫu", "Lan", "Có", "Quỹ công ty", "", 1250000, "https://drive/x", "dự án X", "1500"]);
 });
@@ -39,6 +39,17 @@ t("laLocaleVi: chỉ nhận vi", () => {
   assert.equal(laLocaleVi(""), false);
   assert.equal(laLocaleVi(undefined), false);
 });
+// Cá nhân ứng chờ hoàn (chủ dự án 2026-10-06): M Đã hoàn ứng · N Ngày hoàn · O URL chứng từ (ẩn — tab quỹ dựng lại link
+// bấm được từ đây, vì công thức đọc chip Drive chỉ ra chữ).
+t("dòng Cá nhân ứng: M = 'Chưa', N trống; quỹ khác: M trống", () => {
+  const r = buildFundRow({ loai: "chi", ngay: "2026-06-03", dienGiai: "Đặt cọc thành lập công ty", nguonQuy: "Cá nhân ứng", hoaDon: "Chờ xuất", amount: 1000000, link: "https://drive.google.com/drive/folders/x" });
+  assert.equal(r[4], "Chờ xuất"); assert.equal(r[12], "Chưa"); assert.equal(r[13], ""); assert.equal(r[14], "https://drive.google.com/drive/folders/x");
+  assert.equal(buildFundRow({ loai: "chi", ngay: "2026-06-03", dienGiai: "x", nguonQuy: "Thuỷ", amount: 1 })[12], "");
+});
+t("dòng thu: Đã hoàn ứng để trống kể cả quỹ Cá nhân ứng (thu không có vòng hoàn)", () => {
+  assert.equal(buildFundRow({ loai: "thu", ngay: "2026-06-03", dienGiai: "x", nguonQuy: "Cá nhân ứng", amount: 1 })[12], "");
+});
+
 // Form sổ do NGƯỜI chỉnh trên Sheet (chủ dự án 2026-10-06): dòng mới chép định dạng dòng ngay trên + link chứng từ là chip Drive.
 t("dongTuRange: đọc số dòng từ updatedRange của values.append", () => {
   assert.deepEqual(dongTuRange("'Chi phí chung'!A3:L3"), { dau: 3, cuoi: 3 });
@@ -47,8 +58,8 @@ t("dongTuRange: đọc số dòng từ updatedRange của values.append", () => 
 });
 t("yeuCauTheoForm: dòng 3 → chép định dạng dòng 2 (A:L), cột J thành chip Drive", () => {
   const r = yeuCauTheoForm({ gid: 7, dong: 3, link: "https://drive.google.com/drive/folders/abc" });
-  assert.deepEqual(r[0].copyPaste, { source: { sheetId: 7, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 12 },
-    destination: { sheetId: 7, startRowIndex: 2, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: 12 }, pasteType: "PASTE_FORMAT" });
+  assert.deepEqual(r[0].copyPaste, { source: { sheetId: 7, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 15 },
+    destination: { sheetId: 7, startRowIndex: 2, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: 15 }, pasteType: "PASTE_FORMAT" });
   const o = r[1].updateCells;
   assert.deepEqual(o.range, { sheetId: 7, startRowIndex: 2, endRowIndex: 3, startColumnIndex: 9, endColumnIndex: 10 });
   assert.equal(o.rows[0].values[0].userEnteredValue.stringValue, "@");

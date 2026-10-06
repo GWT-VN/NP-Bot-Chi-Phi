@@ -88,8 +88,13 @@ const TON_FUND = `=SUM($G$2:INDEX($G:$G${ARG_SEP}ROW()))-SUM($H$2:INDEX($H:$H${A
 //   - Mã tin (L, ẩn): msgId tin gốc — sua_khoan tìm dòng theo cột này vì người quản lý có thể xoá/chèn dòng tay.
 // Khác bản gốc: BỎ "Đã hoàn ứng" / "Ngày hoàn" / "Link hóa đơn" — sổ chi phí dự án không có vòng công ty hoàn tiền.
 // Dòng thu: Hoá đơn "—" (hoá đơn đỏ chỉ có nghĩa với khoản chi).
-export const COT = { ngay: 1, dienGiai: 2, nguoi: 3, hoaDon: 4, nguonQuy: 5, thu: 6, chi: 7, ton: 8, link: 9, ghiChu: 10, maTin: 11 };
-const CHU = "ABCDEFGHIJKL";
+// Cá nhân ứng chờ hoàn (chủ dự án 2026-10-06): thêm SAU cột Mã tin để không xô form người đã chỉnh —
+//   M Đã hoàn ứng ("Chưa" khi nguồn = Cá nhân ứng; người quản lý đổi "Đã hoàn" khi công ty trả) · N Ngày hoàn ·
+//   O URL chứng từ (ẩn): tab quỹ dựng lại link bấm được từ đây — công thức đọc chip Drive ở J chỉ ra chữ.
+export const COT = { ngay: 1, dienGiai: 2, nguoi: 3, hoaDon: 4, nguonQuy: 5, thu: 6, chi: 7, ton: 8, link: 9, ghiChu: 10, maTin: 11, daHoan: 12, ngayHoan: 13, url: 14 };
+export const SO_COT = 15;
+export const CA_NHAN_UNG = "Cá nhân ứng";
+const CHU = "ABCDEFGHIJKLMNO";
 // Chữ do NGƯỜI gõ (diễn giải, tên, ghi chú) đi qua USER_ENTERED → "=…", "+…", "-…", "@…" sẽ bị Sheet hiểu là công thức/số
 // (vd =IMPORTXML(...) gửi dữ liệu ra ngoài). Thêm dấu ' ở đầu để Sheet coi là chữ. Công thức của BOT (STT, Tồn) không qua đây.
 const anToan = (v) => (typeof v === "string" && /^[=+\-@]/.test(v) ? `'${v}` : v);
@@ -101,6 +106,7 @@ export function buildFundRow({ loai = "chi", ngay, dienGiai, nguoi = "", hoaDon 
     "=ROW()-1", toDMY(ngay), anToan(dienGiai || ""), anToan(nguoi || ""), hd, anToan(nguonQuy || ""),
     isThu ? n : "", isThu ? "" : n,
     TON_FUND, link || "", anToan(ghiChu || ""), maTin ? String(maTin) : "",
+    !isThu && nguonQuy === CA_NHAN_UNG ? "Chưa" : "", "", link || "",
   ];
 }
 
@@ -173,7 +179,7 @@ export function dongTuRange(r) {
   return m ? { dau: Number(m[1]), cuoi: Number(m[2] || m[1]) } : null;
 }
 export function yeuCauTheoForm({ gid, dong, link }) {
-  const hang = (i) => ({ sheetId: gid, startRowIndex: i - 1, endRowIndex: i, startColumnIndex: 0, endColumnIndex: 12 });
+  const hang = (i) => ({ sheetId: gid, startRowIndex: i - 1, endRowIndex: i, startColumnIndex: 0, endColumnIndex: SO_COT });
   // Dòng dữ liệu đầu tiên (2) không có dòng mẫu → không chép định dạng (chép từ tiêu đề là ra chữ đậm).
   const reqs = dong > 2 ? [{ copyPaste: { source: hang(dong - 1), destination: hang(dong), pasteType: "PASTE_FORMAT" } }] : [];
   if (/^https:\/\/(drive|docs)\.google\.com\//.test(String(link || ""))) reqs.push({ updateCells: {
@@ -304,7 +310,14 @@ export async function capNhatDong(sheetId, tab, rowNum, { dienGiai, hoaDon, nguo
   const data = []
   if (dienGiai !== undefined) data.push(o("dienGiai", dienGiai));
   if (hoaDon !== undefined) data.push(o("hoaDon", loai === "thu" ? "—" : hoaDon));
-  if (nguonQuy !== undefined) data.push(o("nguonQuy", nguonQuy));
+  if (nguonQuy !== undefined) {
+    data.push(o("nguonQuy", nguonQuy));
+    // Đổi sang/khỏi Cá nhân ứng thì cột Đã hoàn ứng theo; đang "Đã hoàn" thì giữ (không xoá dấu người quản lý đã đánh).
+    const r = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!M${rowNum}` });
+    const cu = String(((r.data.values || [])[0] || [])[0] ?? "").trim();
+    if (nguonQuy === CA_NHAN_UNG && loai !== "thu" && !cu) data.push(o("daHoan", "Chưa"));
+    if (nguonQuy !== CA_NHAN_UNG && cu === "Chưa") data.push(o("daHoan", ""));
+  }
   if (amount !== undefined || loai !== undefined) {
     if (!loai || amount === undefined) throw new Error("sửa số tiền phải kèm cả loai lẫn amount");
     data.push(o("thu", loai === "thu" ? Number(amount) : ""), o("chi", loai === "thu" ? "" : Number(amount)));

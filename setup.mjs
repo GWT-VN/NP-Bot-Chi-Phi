@@ -3,6 +3,7 @@
 //   node setup.mjs            → tạo mới, ghi sheetId/folderId vào config.json (từ chối nếu config đã có sheetId)
 //   node setup.mjs --force    → vẫn tạo mới dù config đã có (file cũ KHÔNG bị xoá — tự dọn tay trên Drive)
 //   node setup.mjs --tab-kenh → file ĐÃ CÓ: dựng tab sổ + tab tổng hợp cho từng kênh trong config.channels (chạy lại vô hại)
+//   node setup.mjs --tab-quy  → file ĐÃ CÓ: dựng/cập nhật tab quỹ + "Cá nhân ứng chờ hoàn" + "Tổng hợp quỹ" (chạy lại vô hại)
 // Cần token Google của ai@gwt.vn (python3 lib/google-dang-nhap.py → ~/Bots/.secrets/np-google-token.json). Spec §4.
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -54,6 +55,50 @@ export function keHoachTabKenh(tenHienCo, channels = {}, book = {}) {
   return ops;
 }
 
+// ── Tab quỹ tự tổng hợp + Cá nhân ứng chờ hoàn (chủ dự án 2026-10-06) ─────────────────────────────────────────
+// Bot CHỈ ghi tab kênh (quyết toán từng dự án). Các tab dưới đây là CÔNG THỨC đọc mọi tab kênh → sửa một dòng ở tab
+// kênh là tab quỹ tự đổi, không nhập 2 lần. Nguồn gộp (vi_VN: ';' ngăn tham số, '\\' ngăn cột trong {}):
+//   Col 1 Ngày · 2 Kênh · 3 Diễn giải · 4 Người · 5 Hoá đơn · 6 Quỹ · 7 Thu · 8 Chi · 9 Chứng từ (chữ của chip) ·
+//   10 Ghi chú · 11 Đã hoàn ứng · 12 Ngày hoàn · 13 URL chứng từ.
+// Thu/Chi qua N(): cột trống hoàn toàn thì QUERY coi là chữ và sum ra #VALUE! (đo 2026-10-06). Chip Drive đi qua công
+// thức chỉ còn chữ → link bấm dựng lại bằng HYPERLINK từ cột URL ẩn (O ở tab kênh).
+export const CA_NHAN = "Cá nhân ứng";
+export function nguonGop(tabs) {
+  const khoi = (t) => `HSTACK('${t}'!B2:B;ARRAYFORMULA(IF('${t}'!B2:B="";"";"${t}"));'${t}'!C2:F;ARRAYFORMULA(N('${t}'!G2:G));ARRAYFORMULA(N('${t}'!H2:H));'${t}'!J2:K;'${t}'!M2:O)`;
+  return `VSTACK(${tabs.map(khoi).join(";")})`;
+}
+export function keHoachTabQuy({ channels = {}, quy = [] } = {}) {
+  const tabs = Object.values(channels).map((k) => k.tab).filter(Boolean);
+  const N = nguonGop(tabs);
+  const q = (sel, where, extra = "") => `=IFERROR(QUERY(${N}; "select ${sel} where Col1 is not null${where}${extra}"; 0); "")`;
+  const STT = `=ARRAYFORMULA(IF(B2:B="";"";ROW(B2:B)-1))`;
+  const LINK = `=ARRAYFORMULA(IF(B2:B="";"";IF(M2:M="";L2:L;HYPERLINK(M2:M;L2:L))))`;
+  const ra = [];
+  for (const { ten } of quy.filter((x) => x.ten !== CA_NHAN)) {
+    const w = ` and Col6 = '${ten}'`, ord = " order by Col1";
+    ra.push({ title: `Quỹ ${ten}`, loai: "quy",
+      header: ["STT", "Ngày", "Kênh", "Diễn giải", "Người", "Hoá đơn", "Thu", "Chi", "Tồn quỹ", "Chứng từ", "Ghi chú", "_tên", "_url"],
+      o: { A2: STT, B2: q("Col1, Col2, Col3, Col4, Col5, Col7, Col8", w, ord),
+        I2: `=ARRAYFORMULA(IF(B2:B="";"";SCAN(0;IFERROR(--G2:G;0)-IFERROR(--H2:H;0);LAMBDA(a;x;a+x))))`,
+        J2: LINK, K2: q("Col10, Col9, Col13", w, ord) },
+      ngay: [1], tien: [6, 7, 8], an: [11, 12], rong: [45, 95, 150, 260, 110, 80, 110, 110, 120, 200, 200] });
+  }
+  if (quy.some((x) => x.ten === CA_NHAN)) {
+    const w = ` and Col6 = '${CA_NHAN}' and Col8 > 0`, ord = " order by Col11, Col1"; // "Chưa" < "Đã hoàn" → chưa hoàn lên trước
+    ra.push({ title: "Cá nhân ứng chờ hoàn", loai: "canhan",
+      header: ["STT", "Người ứng", "Ngày", "Kênh", "Diễn giải", "Số tiền", "Hoá đơn", "Đã hoàn ứng", "Ngày hoàn", "Chứng từ", "Ghi chú", "_tên", "_url", "", "Công ty đang nợ"],
+      o: { A2: STT, B2: q("Col4, Col1, Col2, Col3, Col8, Col5, Col11, Col12", w, ord), J2: LINK, K2: q("Col10, Col9, Col13", w, ord),
+        O2: `=IFERROR(QUERY(${N}; "select Col4, sum(Col8) where Col1 is not null and Col6 = '${CA_NHAN}' and Col8 > 0 and Col11 <> 'Đã hoàn' group by Col4 label Col4 'Người', sum(Col8) 'Đang nợ'"; 0); "Không còn khoản chờ hoàn")` },
+      ngay: [2, 8], tien: [5, 15], an: [11, 12], rong: [45, 120, 95, 150, 260, 110, 90, 100, 95, 200, 200, 100, 100, 24, 140, 120] });
+  }
+  ra.push({ title: "Tổng hợp quỹ", loai: "tonghop", header: [],
+    o: { A1: "Theo quỹ (mọi kênh)", F1: "Chi theo tháng × quỹ",
+      A2: `=IFERROR(QUERY(${N}; "select Col6, sum(Col7), sum(Col8), sum(Col7)-sum(Col8) where Col1 is not null group by Col6 order by Col6 label Col6 'Quỹ', sum(Col7) 'Tổng thu', sum(Col8) 'Tổng chi', sum(Col7)-sum(Col8) 'Tồn'"; 0); "Chưa có dữ liệu")`,
+      F2: `=IFERROR(QUERY(${N}; "select year(Col1), month(Col1)+1, sum(Col8) where Col1 is not null group by year(Col1), month(Col1)+1 pivot Col6 label year(Col1) 'Năm', month(Col1)+1 'Tháng'"; 0); "Chưa có dữ liệu")` },
+    ngay: [], tien: [1, 2, 3, 7, 8, 9, 10, 11, 12], an: [], rong: [150, 120, 120, 120, 24, 60, 60, 120, 120, 120, 120, 120] });
+  return ra;
+}
+
 export function keHoachSo({ quy = [] } = {}) {
   return {
     title: "Sổ chi phí New Projects",
@@ -61,7 +106,7 @@ export function keHoachSo({ quy = [] } = {}) {
     timeZone: "Asia/Ho_Chi_Minh",
     folderName: "Chứng từ New Projects",
     tabs: [
-      { title: "Sổ chi phí", hidden: false, header: ["STT", "Ngày", "Diễn giải", "Người", "Hoá đơn đỏ", "Nguồn quỹ", "Thu", "Chi", "Tồn", "Link chứng từ", "Ghi chú", "Mã tin"] },
+      { title: "Sổ chi phí", hidden: false, header: ["STT", "Ngày", "Diễn giải", "Người", "Hoá đơn đỏ", "Nguồn quỹ", "Thu", "Chi", "Tồn", "Link chứng từ", "Ghi chú", "Mã tin", "Đã hoàn ứng", "Ngày hoàn", "URL chứng từ"] },
       { title: "Tổng hợp", hidden: false, header: [] },
       // _state: bot append [thời điểm, "", "", msgId] — loadProcessed đọc D2:D. Không sửa tay.
       { title: "_state", hidden: true, header: ["Thời điểm", "", "", "msgId (đừng sửa)"] },
@@ -118,12 +163,70 @@ async function taoTabKenh(cfg) {
   console.log(JSON.stringify({ ok: true, viec: ops }, null, 2));
 }
 
+// --tab-quy: dựng/cập nhật tab quỹ + Cá nhân ứng chờ hoàn + Tổng hợp quỹ; bổ sung cột M:O + dropdown cho tab kênh.
+// Chạy lại vô hại (ghi đè công thức, không đụng dòng dữ liệu tab kênh). Thêm kênh/quỹ → chạy lại.
+async function taoTabQuy(cfg) {
+  const sheets = google.sheets({ version: "v4", auth: getAuthClient() });
+  const { sheetId } = cfg.book;
+  const lay = async () => (await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets(properties(sheetId,title,index),protectedRanges(protectedRangeId))" })).data.sheets;
+  const kenh = Object.values(cfg.channels || {}).map((k) => k.tab).filter(Boolean);
+  const ke = keHoachTabQuy(cfg);
+  let ds = await lay();
+  const gid = (t) => ds.find((x) => x.properties.title === t)?.properties.sheetId;
+  const them = ke.filter((k) => gid(k.title) == null).map((k) => ({ addSheet: { properties: { title: k.title, gridProperties: { frozenRowCount: k.header.length ? 1 : 0 } } } }));
+  if (them.length) { await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: them } }); ds = await lay(); }
+  const dv = (g, c, vals) => ({ setDataValidation: { range: { sheetId: g, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: c, endColumnIndex: c + 1 },
+    rule: { condition: { type: "ONE_OF_LIST", values: vals.map((v) => ({ userEnteredValue: v })) }, strict: false, showCustomUi: true } } });
+  const cot = (g, c, props, fields) => ({ updateDimensionProperties: { range: { sheetId: g, dimension: "COLUMNS", startIndex: c, endIndex: c + 1 }, properties: props, fields } });
+  const fmt = (g, c, nf) => ({ repeatCell: { range: { sheetId: g, startRowIndex: 1, startColumnIndex: c, endColumnIndex: c + 1 }, cell: { userEnteredFormat: { numberFormat: nf } }, fields: "userEnteredFormat.numberFormat" } });
+  const NGAY = { type: "DATE", pattern: "dd/mm/yyyy" }, TIEN = { type: "NUMBER", pattern: "#,##0;-#,##0;" };
+  const reqs = [], data = [];
+  // 1) Tab kênh: tiêu đề M:O (giữ chữ đậm như tiêu đề người đã chỉnh), O ẩn, dropdown Hoá đơn / Quỹ / Đã hoàn ứng.
+  for (const t of kenh) {
+    const g = gid(t);
+    data.push({ range: `'${t}'!M1:O1`, values: [["Đã hoàn ứng", "Ngày hoàn", "URL chứng từ"]] });
+    reqs.push({ copyPaste: { source: { sheetId: g, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 1 }, destination: { sheetId: g, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 12, endColumnIndex: 15 }, pasteType: "PASTE_FORMAT" } },
+      cot(g, 14, { hiddenByUser: true }, "hiddenByUser"), fmt(g, 13, NGAY),
+      dv(g, 4, ["Có", "Không", "Chờ xuất", "—"]), dv(g, 5, (cfg.quy || []).map((x) => x.ten)), dv(g, 12, ["Chưa", "Đã hoàn"]));
+    // URL ẩn cho dòng cũ: lấy từ chip / link của cột J.
+    const r = (await sheets.spreadsheets.get({ spreadsheetId: sheetId, includeGridData: true, ranges: [`'${t}'!J2:O`], fields: "sheets.data.rowData.values(formattedValue,hyperlink,chipRuns)" })).data.sheets[0].data[0].rowData || [];
+    r.forEach((row, i) => {
+      const v = row.values || [], j = v[0] || {}, o = v[5] || {};
+      const url = j.chipRuns?.[0]?.chip?.richLinkProperties?.uri || j.hyperlink || (/^https?:/.test(j.formattedValue || "") ? j.formattedValue : "");
+      if (url && !o.formattedValue) data.push({ range: `'${t}'!O${i + 2}`, values: [[url]] });
+    });
+  }
+  // 2) Tab công thức: xoá cũ, ghi tiêu đề + công thức, định dạng, khoá (cảnh báo khi gõ tay — gõ vào là vỡ công thức).
+  const mau = gid(kenh[0]);
+  for (const k of ke) {
+    const g = gid(k.title);
+    reqs.push({ updateCells: { range: { sheetId: g }, fields: "userEnteredValue" } });
+    if (k.header.length) {
+      data.push({ range: `'${k.title}'!A1`, values: [k.header] });
+      reqs.push({ copyPaste: { source: { sheetId: mau, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 1 }, destination: { sheetId: g, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: k.header.length }, pasteType: "PASTE_FORMAT" } });
+    } else reqs.push({ repeatCell: { range: { sheetId: g, startRowIndex: 0, endRowIndex: 1 }, cell: { userEnteredFormat: { textFormat: { bold: true } } }, fields: "userEnteredFormat.textFormat.bold" } });
+    for (const [o, v] of Object.entries(k.o)) data.push({ range: `'${k.title}'!${o}`, values: [[v]] });
+    k.ngay.forEach((c) => reqs.push(fmt(g, c, NGAY)));
+    k.tien.forEach((c) => reqs.push(fmt(g, c, TIEN)));
+    k.rong.forEach((px, c) => reqs.push(cot(g, c, { pixelSize: px, hiddenByUser: k.an.includes(c) }, "pixelSize,hiddenByUser")));
+    if (!(ds.find((x) => x.properties.sheetId === g)?.protectedRanges || []).length)
+      reqs.push({ addProtectedRange: { protectedRange: { range: { sheetId: g }, description: "Tab tự tính từ các tab kênh — sửa ở tab kênh", warningOnly: true } } });
+  }
+  // 3) Thứ tự tab: kênh → quỹ → cá nhân ứng → tổng hợp quỹ → tổng hợp từng kênh → tab kỹ thuật.
+  const thuTu = [...kenh, ...ke.map((k) => k.title), ...kenh.map(tenTongHop), "_state", "_rep"];
+  thuTu.forEach((t, i) => { const g = gid(t); if (g != null) reqs.push({ updateSheetProperties: { properties: { sheetId: g, index: i }, fields: "index" } }); });
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: reqs } });
+  await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: sheetId, requestBody: { valueInputOption: "USER_ENTERED", data } });
+  console.log(JSON.stringify({ ok: true, tab: ke.map((k) => k.title), them: them.length }, null, 2));
+}
+
 async function main() {
   process.chdir(DIR);
   const force = process.argv.includes("--force");
   const cfgPath = path.join(DIR, "config.json");
   const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
-  if (process.argv.includes("--tab-kenh")) return taoTabKenh(cfg);
+  if (process.argv.includes("--tab-kenh")) { await taoTabKenh(cfg); return taoTabQuy(cfg); } // kênh mới → tab quỹ phải đọc thêm tab đó
+  if (process.argv.includes("--tab-quy")) return taoTabQuy(cfg);
   if (cfg.book.sheetId && !force) throw new Error(`config.json đã có sheetId ${cfg.book.sheetId} — không tạo trùng. Cố ý tạo mới thì thêm --force.`);
 
   const auth = getAuthClient();

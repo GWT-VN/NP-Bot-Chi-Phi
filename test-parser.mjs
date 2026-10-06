@@ -545,7 +545,7 @@ for (const [tag, input, want] of NP_HD_CASES) {
   const p = parseEntry(it);
   const rt = p.skip ? p : route(it, p);
   const got = rt.skip ? `SKIP:${rt.reason}` : `${rt.tab}|${rt.row.length}|${rt.row[4]}|${rt.row[6]}|${rt.row[7]}`;
-  const want = "Sổ chi phí|12|Có||1250000";
+  const want = "Sổ chi phí|15|Có||1250000"; // 15 cột: thêm M Đã hoàn ứng · N Ngày hoàn · O URL chứng từ (2026-10-06)
   if (got === want) pass++; else fails.push({ tag: "NP-e2e-tin-chuẩn", input: it.content, want, got });
 }
 

@@ -33,15 +33,17 @@ test("đúng luật + khớp → ghi ngay, 12 cột, Mã tin, ✅ và gỡ ❓ s
   const r = await t.so.ghiKhoan(DUNG)
   assert.equal(r.ok, true)
   const row = t.ghi[0].rows[0]
-  assert.equal(row.length, 12); assert.equal(row[5], "Quỹ công ty"); assert.equal(row[7], 1250000); assert.equal(row[11], "100"); assert.equal(row[9], "https://drive/x")
+  assert.equal(row.length, 15); assert.equal(row[14], "https://drive/x"); assert.equal(row[5], "Quỹ công ty"); assert.equal(row[7], 1250000); assert.equal(row[11], "100"); assert.equal(row[9], "https://drive/x")
   assert.deepEqual(t.ghi[0].msgIds, ["100"])
   assert.deepEqual(t.react[0], [KENH, "100", "✅"]); assert.deepEqual(t.unreact[0], [KENH, "100", "❓"])
 })
 
-test("đúng luật nhưng Claude đưa số KHÁC → từ chối nếu không có xác nhận", async () => {
+// Chủ dự án 2026-10-06: luật là THAM CHIẾU cho Claude, không phải cổng chặn — các ca dưới đây trước bị lệnh từ chối,
+// nay lệnh ghi theo giá trị Claude chốt và trả tham_chieu để Claude tự soát (Claude là người quyết hỏi hay ghi).
+test("Claude chốt số KHÁC chữ tin → vẫn ghi, kết quả có tham_chieu 'so_tien' để Claude soát lại", async () => {
   const t = dung([goc])
   const r = await t.so.ghiKhoan({ ...DUNG, so_tien: 735000 })
-  assert.equal(r.ok, false); assert.match(r.ly_do, /xác nhận/); assert.equal(t.ghi.length, 0)
+  assert.equal(r.ok, true, r.ly_do); assert.match(r.tham_chieu, /so_tien/)
 })
 
 test("sai luật + xác nhận của CHÍNH người gửi, gửi SAU → ghi, Ghi chú có link xác nhận", async () => {
@@ -99,9 +101,10 @@ test("số tiền âm / 0 / lẻ / quá trần, loai/hoa_don lạ → từ chố
     assert.equal((await t.so.ghiKhoan({ ...DUNG, ...x, xac_nhan_message_id: "105" })).ok, false, JSON.stringify(x))
 })
 
-test("tin 'note / không ghi sổ' → từ chối hẳn, kể cả có xác nhận", async () => {
-  const t = dung([msg("100", "note tổng tháng 1.250.000đ qct"), tl("105", "đúng", "100")])
-  assert.equal((await t.so.ghiKhoan({ ...DUNG, xac_nhan_message_id: "105" })).ok, false)
+test("tin 'note / không ghi sổ' → kiem_tin báo bo_qua cho Claude (Claude đọc thấy thì không ghi)", async () => {
+  const t = dung([msg("100", "note tổng tháng 1.250.000đ qct")])
+  const r = await t.so.kiemTin({ chat_id: KENH, message_id: "100" })
+  assert.equal(r.bo_qua, true)
 })
 
 test("✅ chỉ thả khi ghi thành công: commit lỗi → không ✅", async () => {
@@ -166,8 +169,8 @@ test("[C1] reply vào câu hỏi bot về tin KHÁC → từ chối", async () =
   const t = dung([msg("100", "chi A 50k qct"), msg("101", "chi B 70k qct"), bot("102", "101"), tl("105", "đúng", "102")])
   assert.equal((await t.so.ghiKhoan({ ...DUNG, xac_nhan_message_id: "105" })).ok, false)
 })
-test("[C1] tin trò chuyện thuần (bo_qua) → không ghi được kể cả có xác nhận reply", async () => {
-  const t = dung([msg("100", "Vâng chị em nhận rồi ạ", { attachments: [] }), tl("105", "đúng", "100")])
+test("[C1] xác nhận vẫn phải là Reply của CHÍNH người gửi khi Claude gửi kèm", async () => {
+  const t = dung([msg("100", "Vâng chị em nhận rồi ạ", { attachments: [] }), tl("105", "đúng", "100", { author: { id: "88", username: "x" } })])
   assert.equal((await t.so.ghiKhoan({ ...DUNG, xac_nhan_message_id: "105" })).ok, false)
 })
 test("[C1] sua_khoan: yêu cầu không phải reply → từ chối", async () => {
@@ -227,10 +230,10 @@ test("[chưa có danh sách quỹ] quỹ có trong chữ tin gốc → ghi đún
   assert.equal(r.ok, true, r.ly_do); assert.equal(t.ghi[0].rows[0][5], "quỹ dự án A")
 })
 
-test("[chưa có danh sách quỹ] tên quỹ KHÔNG có trong tin → từ chối (chặn Claude bịa quỹ)", async () => {
+test("[chưa có danh sách quỹ] Claude ghi quỹ theo cách hiểu của mình → ghi được (không so chữ)", async () => {
   const t = dung([msg("100", "chi Mua vật tư mẫu 1.250.000đ có hoá đơn đỏ")], { cfg: MO })
-  const r = await t.so.ghiKhoan({ ...DUNG_MO, nguon_quy: "Quỹ bịa" })
-  assert.equal(r.ok, false); assert.match(r.ly_do, /quỹ/i); assert.equal(t.ghi.length, 0)
+  const r = await t.so.ghiKhoan({ ...DUNG_MO, nguon_quy: "Quỹ marketing" })
+  assert.equal(r.ok, true, r.ly_do); assert.equal(t.ghi[0].rows[0][5], "Quỹ marketing")
 })
 
 test("[chưa có danh sách quỹ] quỹ nằm trong tin xác nhận (Reply) → ghi được", async () => {
@@ -242,7 +245,6 @@ test("[chưa có danh sách quỹ] quỹ nằm trong tin xác nhận (Reply) →
 test("[chưa có danh sách quỹ] sua_khoan đổi quỹ theo chữ trong tin yêu cầu sửa", async () => {
   const t = dung([msg("100", "chi Mua vật tư mẫu 1.250.000đ có hoá đơn đỏ"), tl("106", "nhầm, chi từ quỹ B", "100")], { cfg: MO, dongTheoMa: { "100": 7 } })
   assert.equal((await t.so.suaKhoan({ chat_id: KENH, message_id: "100", yeu_cau_message_id: "106", nguon_quy: "quỹ B" })).ok, true)
-  assert.equal((await t.so.suaKhoan({ chat_id: KENH, message_id: "100", yeu_cau_message_id: "106", nguon_quy: "quỹ C" })).ok, false)
 })
 
 // Nhiều kênh (2026-10-06): mỗi kênh một tab sổ trong cùng file → mọi lệnh đụng sổ phải mang KÊNH của tin xuống tầng sổ.
@@ -297,30 +299,46 @@ test("[Claude đọc] tin nhiều số nhưng Claude chọn đúng tổng có tr
   const row = t.ghi[0].rows[0]
   assert.equal(row[7], 1500000); assert.equal(row[1], "08/09/2026"); assert.equal(row[4], "Không")
 })
-test("[Claude đọc] số tiền KHÔNG có trong chữ tin → phải có xác nhận", async () => {
+test("[Claude đọc] số tiền KHÔNG có trong chữ tin (vd đọc từ ảnh bill) → ghi, tham_chieu báo so_tien", async () => {
   const t = dung([TRANG], { cfg: { ...CFG, quy: [] } })
   const r = await t.so.ghiKhoan({ ...GHI_TRANG, so_tien: 2000000 })
-  assert.equal(r.ok, false); assert.match(r.ly_do, /xác nhận/); assert.ok(r.thieu.includes("so_tien"))
+  assert.equal(r.ok, true, r.ly_do); assert.match(r.tham_chieu, /so_tien/)
 })
-test("[Claude đọc] hoá đơn 'Có' mà tin không nhắc hoá đơn → phải có xác nhận", async () => {
+// Chủ dự án 2026-10-06: "đọc và phân tích hiểu xem phần nào cần ghi, đừng hard rule" → thu/chi, hoá đơn, quỹ là việc
+// Claude ĐỌC, lệnh không đối chiếu từ khoá. Cổng khách quan còn lại: số tiền có trong chữ tin + có ảnh.
+const COC = msg("500", "Chi 1tr tiền đặt cọc thành lập công ty (hiện chưa có HĐ, đặt cọc bằng tiền cá nhân trước, sau này khi thành lập cty sẽ thanh toán lại = công ty và xuất hoá đơn sau)",
+  { attachments: [ANH[0]] })
+const CFG3 = { ...CFG, quy: [{ ten: "GWT - TK Công ty" }, { ten: "Cá nhân ứng" }] }
+test("[Claude đọc] khoản cá nhân ứng, hoá đơn 'Chờ xuất' (tin vừa 'chưa có HĐ' vừa 'xuất sau') → ghi ngay, M = Chưa", async () => {
+  const t = dung([COC], { cfg: CFG3 })
+  const r = await t.so.ghiKhoan({ chat_id: KENH, message_id: "500", loai: "chi", so_tien: 1000000, noi_dung: "Đặt cọc thành lập công ty", hoa_don: "Chờ xuất", nguon_quy: "Cá nhân ứng", ngay: "03/06/2026" })
+  assert.equal(r.ok, true, r.ly_do)
+  const row = t.ghi[0].rows[0]
+  assert.equal(row[4], "Chờ xuất"); assert.equal(row[5], "Cá nhân ứng"); assert.equal(row[12], "Chưa")
+})
+test("[Claude đọc] quỹ Claude chọn không có chữ khớp từ khoá trong tin → vẫn ghi (không đối chiếu từ khoá); quỹ ngoài danh sách → từ chối", async () => {
+  const t = dung([COC], { cfg: CFG3 })
+  assert.equal((await t.so.ghiKhoan({ chat_id: KENH, message_id: "500", loai: "chi", so_tien: 1000000, noi_dung: "x", hoa_don: "Không", nguon_quy: "GWT - TK Công ty" })).ok, true)
+  const t2 = dung([COC], { cfg: CFG3 })
+  assert.equal((await t2.so.ghiKhoan({ chat_id: KENH, message_id: "500", loai: "chi", so_tien: 1000000, noi_dung: "x", hoa_don: "Không", nguon_quy: "Quỹ lạ" })).ok, false)
+})
+test("[Claude đọc] hoá đơn / thu-chi không bị đối chiếu từ khoá (Claude chịu trách nhiệm đọc)", async () => {
   const t = dung([TRANG], { cfg: { ...CFG, quy: [] } })
-  const r = await t.so.ghiKhoan({ ...GHI_TRANG, hoa_don: "Có" })
-  assert.equal(r.ok, false); assert.ok(r.thieu.includes("hoa_don"))
+  assert.equal((await t.so.ghiKhoan({ ...GHI_TRANG, hoa_don: "Có" })).ok, true)
 })
-test("[Claude đọc] 'thu' mà tin chỉ nói chi → phải có xác nhận", async () => {
-  const t = dung([TRANG], { cfg: { ...CFG, quy: [] } })
-  const r = await t.so.ghiKhoan({ ...GHI_TRANG, loai: "thu" })
-  assert.equal(r.ok, false); assert.ok(r.thieu.includes("loai"))
-})
-test("[Claude đọc] không có ảnh → phải có xác nhận", async () => {
+test("[Claude đọc] không có ảnh → ghi, Ghi chú 'không có ảnh chứng từ', tham_chieu báo anh", async () => {
   const t = dung([{ ...TRANG, attachments: [] }], { cfg: { ...CFG, quy: [] } })
   const r = await t.so.ghiKhoan(GHI_TRANG)
-  assert.equal(r.ok, false); assert.ok(r.thieu.includes("anh"))
+  assert.equal(r.ok, true, r.ly_do); assert.match(r.tham_chieu, /anh/); assert.match(t.ghi[0].rows[0][10], /không có ảnh chứng từ/)
 })
-test("[Claude đọc] ngày Claude đưa không có trong tin → bỏ, dùng ngày gửi tin (không bịa ngày)", async () => {
+test("[Claude đọc] ngày Claude đọc ra → dùng; không đưa → ngày gửi tin", async () => {
   const t = dung([TRANG], { cfg: { ...CFG, quy: [] } })
-  assert.equal((await t.so.ghiKhoan({ ...GHI_TRANG, ngay: "01/01/2026" })).ok, true)
-  assert.equal(t.ghi[0].rows[0][1], "05/10/2026")
+  assert.equal((await t.so.ghiKhoan({ ...GHI_TRANG, ngay: "07/09/2026" })).ok, true)
+  assert.equal(t.ghi[0].rows[0][1], "07/09/2026")
+  const t2 = dung([TRANG], { cfg: { ...CFG, quy: [] } })
+  const { ngay, ...khongNgay } = GHI_TRANG
+  assert.equal((await t2.so.ghiKhoan(khongNgay)).ok, true)
+  assert.equal(t2.ghi[0].rows[0][1], "05/10/2026")
 })
 test("[Claude đọc] số chỉ có trên ảnh: bot hỏi kèm số, người gửi Reply 'đúng' vào câu hỏi → ghi được", async () => {
   const g = msg("400", "chi ship hàng cho khách")

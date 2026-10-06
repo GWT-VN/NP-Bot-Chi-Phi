@@ -1,6 +1,6 @@
 // Test kế hoạch dựng Sheet (offline) — chạy: node test-setup.mjs (exit 0 = đạt).
 import assert from "node:assert/strict";
-import { keHoachSo, keHoachTongHop, keHoachTabKenh, TAI_KHOAN } from "./setup.mjs";
+import { keHoachSo, keHoachTongHop, keHoachTabKenh, keHoachTabQuy, TAI_KHOAN } from "./setup.mjs";
 import { buildFundRow } from "./books.mjs";
 
 const k = keHoachSo({ quy: [{ ten: "Quỹ công ty", goiTat: ["qct"] }, { ten: "Tiền cá nhân ứng", goiTat: [] }] });
@@ -16,7 +16,7 @@ t("4 tab, _state/_rep ẩn", () => {
 });
 t("tiêu đề sổ = đúng số cột buildFundRow ghi (Review Focus #5)", () => {
   assert.equal(so.header.length, buildFundRow({ loai: "chi", ngay: "2026-10-05", dienGiai: "x", amount: 1 }).length);
-  assert.deepEqual(so.header, ["STT", "Ngày", "Diễn giải", "Người", "Hoá đơn đỏ", "Nguồn quỹ", "Thu", "Chi", "Tồn", "Link chứng từ", "Ghi chú", "Mã tin"]);
+  assert.deepEqual(so.header, ["STT", "Ngày", "Diễn giải", "Người", "Hoá đơn đỏ", "Nguồn quỹ", "Thu", "Chi", "Tồn", "Link chứng từ", "Ghi chú", "Mã tin", "Đã hoàn ứng", "Ngày hoàn", "URL chứng từ"]);
 });
 t("_state cột D là msgId (loadProcessed đọc D2:D)", () => assert.equal(k.tabs.find((x) => x.title === "_state").header[3], "msgId (đừng sửa)"));
 t("dropdown Nguồn quỹ (F) theo danh sách quỹ trong config; cột Mã tin (L) ẩn", () => {
@@ -62,4 +62,31 @@ t("keHoachTabKenh: file mới tạo (tab cũ trống) → đổi tên cho kênh 
 t("keHoachTabKenh: kênh thiếu tab → lỗi rõ (không đoán tên tab)", () => {
   assert.throws(() => keHoachTabKenh([], { "1": { name: "x" } }, {}), /tab/);
 });
+// Tab quỹ tự tổng hợp + Cá nhân ứng chờ hoàn (chủ dự án 2026-10-06): công thức đọc MỌI tab kênh, bot chỉ ghi tab kênh.
+const KQ = keHoachTabQuy({ channels: { "1": { tab: "Chi phí chung" }, "2": { tab: "Đoàn hoạ sĩ TQ T10-2026" } },
+  quy: [{ ten: "GWT - TK Công ty" }, { ten: "Thuỷ" }, { ten: "Cá nhân ứng" }] });
+t("keHoachTabQuy: 1 tab mỗi quỹ (trừ Cá nhân ứng) + tab Cá nhân ứng chờ hoàn + Tổng hợp quỹ", () => {
+  assert.deepEqual(KQ.map((x) => x.title), ["Quỹ GWT - TK Công ty", "Quỹ Thuỷ", "Cá nhân ứng chờ hoàn", "Tổng hợp quỹ"]);
+});
+t("tab quỹ: gộp mọi tab kênh (VSTACK, ';' vi_VN), lọc đúng quỹ, xếp theo ngày; Thu/Chi qua N() (cột trống không vỡ)", () => {
+  const f = KQ[0].o.B2;
+  assert.match(f, /^=IFERROR\(QUERY\(VSTACK\(HSTACK\('Chi phí chung'!B2:B;/);
+  assert.match(f, /HSTACK\('Đoàn hoạ sĩ TQ T10-2026'!B2:B;/);
+  assert.match(f, /ARRAYFORMULA\(N\('Chi phí chung'!G2:G\)\)/);
+  assert.match(f, /Col6 = 'GWT - TK Công ty' order by Col1/);
+  assert.ok(!/QUERY\([^;]*,\s*"/.test(f), "không dùng ',' làm dấu ngăn tham số");
+  assert.match(KQ[0].o.I2, /SCAN\(0;/);               // Tồn quỹ cộng dồn riêng quỹ này
+  assert.match(KQ[0].o.J2, /HYPERLINK\(M2:M;L2:L\)/); // link chứng từ dựng lại từ URL ẩn
+  assert.deepEqual(KQ[0].an, [11, 12]);
+});
+t("tab Cá nhân ứng: chỉ dòng Chi của nguồn Cá nhân ứng, 'Chưa' lên trước; bảng đang nợ theo người bỏ dòng Đã hoàn", () => {
+  const k = KQ[2];
+  assert.match(k.o.B2, /Col6 = 'Cá nhân ứng' and Col8 > 0 order by Col11, Col1/);
+  assert.match(k.o.O2, /Col11 <> 'Đã hoàn' group by Col4/);
+});
+t("Tổng hợp quỹ: thu/chi/tồn theo quỹ + chi theo tháng × quỹ", () => {
+  const k = KQ[3];
+  assert.match(k.o.A2, /group by Col6/); assert.match(k.o.F2, /pivot Col6/);
+});
+
 console.log(`\n${n} test đạt`);

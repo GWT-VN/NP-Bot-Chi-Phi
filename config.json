@@ -46,6 +46,14 @@
         "quỹ Thuỷ",
         "quỹ Thủy"
       ]
+    },
+    {
+      "ten": "Cá nhân ứng",
+      "goiTat": [
+        "tiền cá nhân",
+        "cá nhân ứng",
+        "ứng trước"
+      ]
     }
   ]
 }

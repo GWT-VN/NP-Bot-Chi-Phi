@@ -1,23 +1,24 @@
 // Lõi ghi sổ NP v2 — 5 lệnh MCP `npso` (spec v2 §4). Phụ thuộc truyền vào (Discord/Sheet/Drive) để test không cần mạng.
-// Nguyên tắc: lệnh TỰ ĐỌC LẠI tin gốc từ Discord, không tin lời Claude khai. Luật 1–5 là cổng "ghi ngay"; lệch luật
-// hoặc Claude đọc khác luật → BẮT BUỘC có tin xác nhận của CHÍNH người gửi, gửi SAU tin gốc. Không có lệnh xoá.
-import { kiemLuat, bangChung, ngayTrongTin } from "./luat.mjs";
+// Nguyên tắc (chủ dự án chốt 2026-10-06): luật 1–5 (rõ thu/chi · số tiền · ảnh · hoá đơn · quỹ) là CHUẨN NỘI DUNG mà
+// CLAUDE đọc và tự đối chiếu — đủ thì ghi, thiếu/chưa rõ thì hỏi lại. Lệnh KHÔNG so từ khoá để chặn ("luật cứng chỉ để
+// Claude phân tích"): kết quả bộ đọc luật trả về làm THAM CHIẾU (kiem_tin trước khi ghi, tham_chieu sau khi ghi).
+// Lệnh chỉ chặn dữ liệu không hợp lệ (giá trị ngoài danh sách, tin đã ghi, kênh lạ) và xác nhận giả (Reply không phải
+// của người gửi). Không có lệnh xoá.
+import { kiemLuat, bangChung } from "./luat.mjs";
 import { buildFundRow } from "./books.mjs";
-import { ngayVN, extractAmount } from "./scanner.mjs";
+import { ngayVN } from "./scanner.mjs";
 
 const TRAN = 1e10;
+// "Chờ xuất": chưa có hoá đơn nhưng sẽ xuất sau (vd cá nhân ứng trước, công ty hoàn rồi xuất HĐ — 2026-10-06).
+export const HOA_DON = ["Có", "Không", "Chờ xuất"];
 const ND = (m) => m.author?.global_name || m.author?.username || "";
 const toDMY = (iso) => { const [y, mo, d] = String(iso).split("-"); return `${d}/${mo}/${y}` };
 const dmyIso = (s) => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(s || "").trim()); return m ? `${m[3]}-${m[2]}-${m[1]}` : null };
 
 export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
   const quyTen = new Set((cfg.quy || []).map((q) => q.ten));
-  // Chưa có danh sách quỹ → quỹ KHÔNG bắt buộc (Dũng chốt 2026-10-05). Có ghi quỹ thì chữ đó phải nằm trong tin của người
-  // gửi (gốc hoặc xác nhận/yêu cầu sửa) — Claude không được tự đặt tên quỹ.
+  // Có danh sách quỹ (chị Tuyết Trang đặt 2026-10-06) → nguon_quy bắt buộc và phải là tên trong danh sách.
   const batBuocQuy = quyTen.size > 0;
-  const chuan = (s) => String(s ?? "").normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
-  const coTrongTin = (ten, ...ms) => ms.some((x) => x && chuan(x.content).includes(chuan(ten)));
-  const quyLa = (ten) => `tên quỹ "${ten}" không có trong tin của người gửi — chỉ ghi quỹ đúng chữ người gửi gõ; không rõ thì để trống nguon_quy`;
   const link = (ch, id) => `https://discord.com/channels/${cfg.guildId || "@me"}/${ch}/${id}`;
   const kenhHopLe = (ch) => Object.prototype.hasOwnProperty.call(cfg.channels || {}, String(ch));
   const tuChoi = (ly_do, them = {}) => ({ ok: false, ly_do, ...them });
@@ -52,7 +53,7 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
   function kiemGiaTri({ loai, so_tien, hoa_don, nguon_quy }, { batBuoc = true } = {}) {
     if ((batBuoc || loai !== undefined) && !["thu", "chi"].includes(loai)) return "loai phải là thu hoặc chi";
     if ((batBuoc || so_tien !== undefined) && !(Number.isInteger(so_tien) && so_tien > 0 && so_tien <= TRAN)) return "so_tien phải là số nguyên dương ≤ 10 tỷ (VND)";
-    if ((batBuoc || hoa_don !== undefined) && !["Có", "Không"].includes(hoa_don)) return "hoa_don phải là Có hoặc Không";
+    if ((batBuoc || hoa_don !== undefined) && !HOA_DON.includes(hoa_don)) return `hoa_don phải là ${HOA_DON.join(" / ")}`;
     if (!batBuocQuy) { if (nguon_quy !== undefined && (typeof nguon_quy !== "string" || nguon_quy.length > 60)) return "nguon_quy phải là chữ ≤ 60 ký tự"; return null }
     if ((batBuoc || nguon_quy !== undefined) && !quyTen.has(nguon_quy)) return `nguon_quy "${nguon_quy}" không có trong danh sách quỹ (${[...quyTen].join(", ") || "chưa khai"}) — người quản lý thêm vào config.json trước`;
     return null;
@@ -81,27 +82,14 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     const sai = kiemGiaTri(a);
     if (sai) return tuChoi(sai);
     const luat = kiemLuat(m, cfg);
-    // Mọi tin bo_qua (ghi chú, "không ghi sổ", trò chuyện) đều KHÔNG ghi được, kể cả có xác nhận (review C1).
-    // Chỉ chặn cứng tin người gửi CỐ Ý đánh dấu không ghi ("note"/"ghi chú"/"không ghi sổ"). Các loại "không phải khoản" khác
-    // của bộ đọc luật không còn là cổng (Claude đọc, 2026-10-06) — tin không có số tiền thì tự trượt bằng chứng ở dưới.
-    if (luat.bo_qua && /ghi chú có chủ đích/.test(luat.ly_do || "")) return tuChoi(`tin này người gửi đánh dấu không ghi sổ (${luat.ly_do}) — khoản mới thì người gửi nhắn tin mới`);
-    const quyTrongGoc = batBuocQuy || !a.nguon_quy || coTrongTin(a.nguon_quy, m);
-    // Claude đọc (2026-10-06): ghi ngay khi giá trị Claude đưa có bằng chứng trong chữ tin; bộ đọc luật chỉ còn là gợi ý.
-    const thieuBc = bangChung(m, a, luat.co_anh);
-    if (batBuocQuy && luat.nguon_quy !== a.nguon_quy) thieuBc.push("quy");
-    const khop = thieuBc.length === 0 && quyTrongGoc;
+    // Tham chiếu cho Claude tự soát lại (KHÔNG chặn): chỗ giá trị Claude chốt khác chữ tin theo bộ đọc luật.
+    const thamChieu = bangChung(m, a, luat.co_anh);
+    // Xác nhận chỉ kiểm khi Claude gửi kèm (sau khi đã hỏi): phải đúng Reply của CHÍNH người gửi về đúng khoản (review C1).
     let xn = null;
-    if (!khop) {
-      if (!quyTrongGoc && !a.xac_nhan_message_id) return tuChoi(quyLa(a.nguon_quy));
+    if (a.xac_nhan_message_id) {
       const r = await xacNhanHopLe(a.chat_id, m, a.xac_nhan_message_id, "ghi");
-      if (r.loi) return tuChoi(r.loi, { thieu: thieuBc, goi_y_bo_doc_luat: { loai: luat.loai, so_tien: luat.so_tien, hoa_don: luat.hoa_don, nguon_quy: luat.nguon_quy } });
+      if (r.loi) return tuChoi(r.loi);
       xn = r.xn;
-      if (!quyTrongGoc && !coTrongTin(a.nguon_quy, xn)) return tuChoi(quyLa(a.nguon_quy));
-      // Số tiền không có trong tin gốc → phải có trong tin xác nhận hoặc câu hỏi của bot mà người gửi Reply ("Bill ghi
-      // 1.200.000đ, ghi chi 1,2tr đúng không?" → "đúng"). Không thì một chữ "đúng" vào tin trò chuyện sẽ cho Claude bị dụ
-      // gán số tuỳ ý (review C1, giữ nguyên khi chuyển sang Claude đọc 2026-10-06).
-      if (thieuBc.includes("so_tien") && ![xn, r.hoi].some((x) => x && (extractAmount(x.content)?.vals || []).includes(a.so_tien)))
-        return tuChoi(`số tiền ${a.so_tien.toLocaleString("vi-VN")}đ không có trong tin gốc lẫn tin xác nhận — hỏi lại người gửi kèm đúng số tiền rồi để họ Reply xác nhận`, { thieu: thieuBc });
     }
     // Dòng đã nằm trong sổ (lần trước ghi dòng xong mà ghi _state lỗi) → KHÔNG thêm dòng, chỉ bù _state (review I1).
     // Nhiều kênh (2026-10-06): mỗi kênh một tab — mọi lệnh sổ mang `kenh` để tầng sổ chọn đúng tab.
@@ -113,21 +101,22 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
       return { ok: true, da_ghi: "khoản này đã có trong sổ từ lần trước — chỉ bù đánh dấu", canh_bao: [] };
     }
     const coAnh = luat.co_anh || (xn?.attachments || []).length > 0;
-    // Ngày: Claude đọc ra VÀ chữ tin có đúng ngày đó → dùng; không thì như cũ (bộ đọc luật / ngày gửi tin). Không bịa ngày.
-    const ngay = ngayTrongTin(m, a.ngay) || luat.ngay || toDMY(ngayVN(m.timestamp));
+    // Ngày: Claude đọc ra từ tin (ngày chi) → dùng; không có thì bộ đọc luật / ngày gửi tin.
+    const ngay = a.ngay || luat.ngay || toDMY(ngayVN(m.timestamp));
     const dau = [];
     let anh = "";
     try { anh = await drive.luuAnh({ msgs: [m, xn].filter(Boolean), loai: a.loai, ngay, noiDung: a.noi_dung, kenh, quy: a.nguon_quy, hoaDon: a.hoa_don }) } catch (e) { dau.push(`chưa lưu được ảnh chứng từ lên Drive (${String(e?.message ?? e).slice(0, 80)})`) }
     // Có ảnh mà không ra link (lỗi Drive / ảnh quá lớn / tải hỏng) → phải để lại dấu trong sổ, không im lặng (review I3).
     if (coAnh && !anh && !dau.length) dau.push("chưa lưu được ảnh chứng từ lên Drive");
-    const ghiChu = [a.ghi_chu || luat.ghi_chu || "", !coAnh ? "không có ảnh chứng từ (đã xác nhận)" : "", coAnh && !anh ? "chưa lưu được ảnh chứng từ" : "",
+    const ghiChu = [a.ghi_chu || luat.ghi_chu || "", !coAnh ? `không có ảnh chứng từ${xn ? " (đã xác nhận)" : ""}` : "", coAnh && !anh ? "chưa lưu được ảnh chứng từ" : "",
       xn ? `đã xác nhận: ${link(a.chat_id, xn.id)}` : ""].filter(Boolean).join("; ");
     const row = buildFundRow({ loai: a.loai, ngay: dmyIso(ngay) || ngay, dienGiai: a.noi_dung, nguoi: ND(m), hoaDon: a.hoa_don,
       nguonQuy: a.nguon_quy || "", amount: a.so_tien, link: anh, ghiChu, maTin: m.id });
     await so.commit({ rows: [row], msgIds: [String(m.id)], kenh }); // lỗi → ném lên, KHÔNG ✅
     try { await discord.react(String(a.chat_id), String(m.id), "✅") } catch (e) { dau.push(`không thả được ✅: ${e.message}`) }
     try { await discord.unreact(String(a.chat_id), String(m.id), "❓") } catch {}
-    return { ok: true, da_ghi: `${a.loai.toUpperCase()} ${a.so_tien.toLocaleString("vi-VN")}đ · ${a.nguon_quy || "chưa ghi quỹ"} · HĐ ${a.hoa_don} · ${a.noi_dung}`, link_anh: anh || null, canh_bao: dau };
+    return { ok: true, da_ghi: `${a.loai.toUpperCase()} ${a.so_tien.toLocaleString("vi-VN")}đ · ${a.nguon_quy || "chưa ghi quỹ"} · HĐ ${a.hoa_don} · ${a.noi_dung}`, link_anh: anh || null, canh_bao: dau,
+      ...(thamChieu.length ? { tham_chieu: `bộ đọc luật thấy khác ở: ${thamChieu.join(", ")} — đọc lại tin; ghi sai thì sua_khoan` } : {}) };
   }
 
   async function suaKhoan(a) {
@@ -137,7 +126,6 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     if (r.loi) return tuChoi(r.loi.replace("xác nhận", "yêu cầu sửa"));
     const sai = kiemGiaTri(a, { batBuoc: false });
     if (sai) return tuChoi(sai);
-    if (!batBuocQuy && a.nguon_quy && !coTrongTin(a.nguon_quy, r.xn, m)) return tuChoi(quyLa(a.nguon_quy));
     if ((a.so_tien === undefined) !== (a.loai === undefined)) return tuChoi("sửa số tiền phải kèm cả loai lẫn so_tien");
     const dong = await so.timDong(String(m.id), String(a.chat_id));
     if (!dong) return tuChoi("khoản này chưa ghi sổ (không thấy Mã tin) — dùng ghi_khoan");
