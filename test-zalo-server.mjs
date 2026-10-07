@@ -9,6 +9,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { taoServerZalo } from "./mcp/npzalo.mjs";
 import { taoKho } from "./zalo/kho.mjs";
+import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
 
 const NHOM = "g123abc";
 let t0 = 1791300000000;
@@ -76,7 +78,7 @@ test("tin trả lời (đúng 1 khoản đang hỏi) → meta có tra_loi_khoan 
   const [m] = await t.tinDau()
   await goi(t.c, "tra_loi", { chat_id: NHOM, text: "quỹ nào?", hoi_ve: m.id })
   await t.nhanCapNhat(chu("@Bot GWT CP đúng, tiền mặt")); await cho()
-  assert.equal(t.tb[1].meta.tra_loi_khoan, m.id); assert.equal(t.tb[1].meta.tra_loi_ma, "1")
+  assert.equal(t.tb[1].meta.tra_loi_khoan, m.id); assert.equal(t.tb[1].meta.tra_loi_ma, "1"); assert.equal(t.tb[1].meta.tra_loi_kieu, "suy_ra")
 })
 
 test("ghi_khoan thành công → server tự báo '✅ #N tên · …' trong nhóm; thất bại → không báo", async () => {
@@ -118,4 +120,42 @@ test("tai_anh: tải ảnh về inbox, trả đường dẫn; tin không ảnh �
   status = 403
   const r3 = await goi(t.c, "tai_anh", { chat_id: NHOM, message_id: m1.id })
   assert.equal(r3.isError, true); assert.match(r3.content[0].text, /gửi lại ảnh/)
+})
+
+// ── Review cuối nhánh (2026-10-07) ────────────────────────────────────────────────────────────────────────────────
+test("[review I2] tra_loi bo_hoi gỡ ❓ của khoản Claude đã chốt không ghi (ghi chú / người gửi huỷ); bo_hoi vào tin bot → từ chối", async () => {
+  const t = await dung(); await t.nhanCapNhat(cap())
+  const [m] = await t.tinDau()
+  await goi(t.c, "tra_loi", { chat_id: NHOM, text: "quỹ nào?", hoi_ve: m.id })
+  assert.ok(m.reactions.some((x) => x.emoji.name === "❓"))
+  const r = await goi(t.c, "tra_loi", { chat_id: NHOM, text: "Đã bỏ qua khoản #1, không ghi sổ.", bo_hoi: m.id })
+  assert.notEqual(r.isError, true, r.content[0].text); assert.ok(!m.reactions.some((x) => x.emoji.name === "❓"))
+  const hoi = (await t.kho.layTinKenh(NHOM, 0)).find((x) => x.author.bot)
+  assert.equal((await goi(t.c, "tra_loi", { chat_id: NHOM, text: "x", bo_hoi: hoi.id })).isError, true)
+})
+
+test("[review M1→I / Focus 1] tai_anh: lỗi mạng hay trang HTML thay ảnh → nhờ gửi lại ảnh, không 'Lỗi hệ thống'", async () => {
+  let kieu = "mang"
+  const t = await dung({ taiFn: async () => {
+    if (kieu === "mang") throw new TypeError("fetch failed")
+    return { ok: true, status: 200, headers: { get: () => "text/html; charset=utf-8" }, arrayBuffer: async () => new Uint8Array([60, 104]).buffer }
+  } })
+  await t.nhanCapNhat(cap()); const [m] = await t.tinDau()
+  for (const k of ["mang", "html"]) {
+    kieu = k
+    const r = await goi(t.c, "tai_anh", { chat_id: NHOM, message_id: m.id })
+    assert.equal(r.isError, true, k); assert.match(r.content[0].text, /gửi lại ảnh/, k); assert.doesNotMatch(r.content[0].text, /Lỗi hệ thống/, k)
+  }
+})
+
+test("[review I3] npzalo thoát khi stdin đóng — không để poller mồ côi giành tin của phiên mới", async () => {
+  const d = mkdtempSync(join(tmpdir(), "npz-"))
+  writeFileSync(join(d, ".env"), "ZALO_BOT_TOKEN=000:gia\n")
+  const p = spawn(process.execPath, ["mcp/npzalo.mjs"], { env: { ...process.env, ZALO_STATE_DIR: d, ZALO_API_GOC: "http://127.0.0.1:9" }, stdio: ["pipe", "pipe", "pipe"] })
+  await new Promise((r) => setTimeout(r, 1500))
+  const thoat = new Promise((r) => p.on("exit", () => r(true)))
+  p.stdin.end()
+  const kq = await Promise.race([thoat, new Promise((r) => setTimeout(() => r(false), 3000))])
+  if (!kq) p.kill("SIGKILL")
+  assert.equal(kq, true, "tiến trình phải tự thoát trong 3s sau khi stdin đóng")
 })

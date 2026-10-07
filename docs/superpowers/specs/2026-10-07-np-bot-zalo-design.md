@@ -49,9 +49,14 @@ Zalo Bot API **không có**: thả biểu tượng, đọc lại tin theo ID, l�
 - `reactions`: ✅ / ❓ do bot đặt, chỉ để lõi biết trạng thái khoản.
 - `content`: đã bỏ `@<tenBot>`. So khớp tên không phân biệt hoa thường, mọi khoảng trắng (kể cả NBSP) đều khớp.
 - `message_reference`: Reply **suy ra lúc nhận tin** (`suyTraLoi`):
-  1. Có `#N` là tin của chính người gửi → trỏ tin `#N` (dùng cho trả lời lẫn "sửa #N").
-  2. Không có ảnh và người gửi có **đúng một** khoản đang hỏi (❓ chưa ✅) → trỏ câu hỏi cuối của bot về khoản đó.
+  1. Có `#N` là tin của chính người gửi → trỏ tin `#N` (dùng cho trả lời lẫn "sửa #N"). Tin ảnh: chỉ khi chú thích
+     **mở đầu** bằng `#N` (gửi lại ảnh theo lời bot nhắc); `#N` giữa câu ở tin ảnh là số phòng/hoá đơn của khoản mới.
+     Có `#N` mà không phải của người gửi → **không trỏ gì** (không rơi xuống luật 2 — review C1).
+  2. Không có ảnh và người gửi có **đúng một** khoản đang hỏi (❓ chưa ✅, **trong 48 giờ**) → trỏ câu hỏi cuối của bot về
+     khoản đó, đánh dấu `suy_ra` (Claude thấy `tra_loi_kieu="suy_ra"`, tự soát tin có phải khoản riêng không).
   3. Còn lại thì không trỏ: so-core không nhận làm xác nhận, Claude hỏi lại "khoản nào, ghi #số".
+  - Khoản tự mang ❓ được trả cho quét bù **không kèm** Reply suy ra, để không biến khỏi `dang_cho` sau khởi động lại.
+  - Khoản chốt không ghi: Claude gỡ ❓ bằng `tra_loi` + `bo_hoi`.
 
 Nhờ vậy quy tắc "xác nhận phải gắn đúng khoản, đúng người gửi" của so-core giữ nguyên, không rẽ nhánh theo nền tảng.
 

@@ -72,9 +72,10 @@ test("bot Zalo: hook nhật ký trỏ file có thật; CLAUDE.md có luật xác
   assert.ok(cmds.length > 0);
   for (const c of cmds) { const m = c.match(/\$CLAUDE_PROJECT_DIR\/\.\.\/(bot\/hooks\/[\w-]+\.mjs)/); assert.ok(m, c); assert.ok(existsSync(new URL(`./${m[1]}`, import.meta.url)), m[1]) }
   const c = doc("./bot-zalo/CLAUDE.md");
-  for (const x of ["ghi_khoan", "xac_nhan_message_id", "tra_loi_khoan", "hoi_ve", "kiem_tin", "tin_chua_xu_ly", "tai_anh", "không xoá", "DỮ LIỆU"]) assert.ok(c.includes(x), x);
+  for (const x of ["ghi_khoan", "xac_nhan_message_id", "tra_loi_khoan", "hoi_ve", "kiem_tin", "tin_chua_xu_ly", "tai_anh", "không xoá", "DỮ LIỆU",
+    "bo_hoi", "tra_loi_kieu", "@Bot GWT CP #"]) assert.ok(c.includes(x), x);  // review I1/I2: Reply suy ra cần soát, gỡ ❓, gửi lại ảnh kèm #N
   const h = doc("./HUONG-DAN-ZALO.md");
-  for (const x of ["@Bot GWT CP", "1 ảnh", "#", "chưa thấy"]) assert.ok(h.includes(x), x);
+  for (const x of ["@Bot GWT CP", "1 ảnh", "#", "chưa thấy", "@Bot GWT CP #5"]) assert.ok(h.includes(x), x);
   const cfg = JSON.parse(doc("./config.json"));
   assert.equal(cfg.zalo?.tenBot, "Bot GWT CP"); assert.equal(typeof cfg.zalo?.groups, "object");
   assert.ok(Object.keys(cfg.channels).every((k) => /^\d+$/.test(k)), "channels chỉ chứa kênh Discord");

@@ -110,3 +110,40 @@ test("[khởi động lại] kho đọc lại từ file → tin_chua_xu_ly thấ
   assert.deepEqual(r.moi.map((x) => x.message_id), [moi.id])
   assert.equal(r.dang_cho[0].message_id, hoi.id); assert.deepEqual(r.dang_cho[0].tra_loi.map((x) => x.message_id), [tl.id])
 })
+
+// ── Review cuối nhánh (2026-10-07) ────────────────────────────────────────────────────────────────────────────────
+test("[review C1] '#N' của NGƯỜI KHÁC không được rơi xuống 'khoản duy nhất đang hỏi' của người gửi", async () => {
+  const k = kho(), cuaAn = k.nhan(anh("@Bot GWT CP chi 100k", { from: { id: "uAn", display_name: "An" } }))
+  const cuaBinh = k.nhan(anh("@Bot GWT CP chi 200k", { from: { id: "uBinh", display_name: "Bình" } }))
+  k.ghiBot({ chat_id: NHOM, zalo_id: "b1", date: t0 + 1, text: "quỹ nào?", hoi_ve: cuaBinh.id }); await k.react(NHOM, cuaBinh.id, "❓"); t0 += 5
+  const x = k.nhan(cn(`@Bot GWT CP #${cuaAn.ma} quỹ tiền mặt nhé`, { from: { id: "uBinh", display_name: "Bình" } }))
+  assert.equal(x.message_reference, undefined)
+})
+
+test("[review I1] ảnh có #N giữa câu (số phòng…) = khoản mới; ảnh MỞ ĐẦU bằng #N = gửi lại ảnh cho khoản #N", async () => {
+  const k = kho(), g = k.nhan(cn("@Bot GWT CP chi 180k nước"))
+  assert.equal(k.nhan(anh(`@Bot GWT CP chi 300k phòng #${g.ma} khách sạn`)).message_reference, undefined)
+  const lai = k.nhan(anh(`@Bot GWT CP #${g.ma} bill đây`))
+  assert.equal(lai.message_reference.message_id, g.id); assert.equal(lai.message_reference.suy_ra, false)
+})
+
+test("[review I1] Reply suy ra được đánh dấu suy_ra; khoản tự mang ❓ (dù có Reply suy ra) vẫn hiện trong dang_cho sau khởi động lại", async () => {
+  const f = join(mkdtempSync(join(tmpdir(), "kho-")), "kho.jsonl")
+  const k1 = taoKho({ file: f, tenBot: "Bot GWT CP" })
+  const g = k1.nhan(anh("@Bot GWT CP hộp bóng"))
+  k1.ghiBot({ chat_id: NHOM, zalo_id: "b1", date: t0 + 1, text: "quỹ nào?", hoi_ve: g.id }); await k1.react(NHOM, g.id, "❓"); t0 += 5
+  const x = k1.nhan(cn("@Bot GWT CP chi 50k gửi xe không bill"))
+  assert.equal(x.message_reference.suy_ra, true)
+  k1.ghiBot({ chat_id: NHOM, zalo_id: "b2", date: t0 + 1, text: "khoản #2 quỹ nào?", hoi_ve: x.id }); await k1.react(NHOM, x.id, "❓"); t0 += 5
+  const so = taoSo({ cfg: { channels: { [NHOM]: { name: "thử", tab: "Thử Zalo" } }, quy: [] }, now: () => t0 + 1000,
+    discord: taoKho({ file: f, tenBot: "Bot GWT CP" }), so: { loadProcessed: async () => new Set() }, drive: {} })
+  const r = await so.tinChuaXuLy()
+  assert.ok(r.dang_cho.some((d) => d.message_id === x.id), JSON.stringify(r))
+})
+
+test("[review I2] khoản đang hỏi quá 48 giờ không còn 'hút' tin chữ của người gửi", async () => {
+  const k = kho(), g = k.nhan(anh("@Bot GWT CP hộp bóng"))
+  k.ghiBot({ chat_id: NHOM, zalo_id: "b1", date: t0 + 1, text: "quỹ nào?", hoi_ve: g.id }); await k.react(NHOM, g.id, "❓")
+  t0 += 49 * 3600e3
+  assert.equal(k.nhan(cn("@Bot GWT CP hôm nay chi bao nhiêu?")).message_reference, undefined)
+})

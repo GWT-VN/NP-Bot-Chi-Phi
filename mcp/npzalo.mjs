@@ -60,16 +60,19 @@ export function taoServerZalo({ core, kho, api, cfg, inbox, taiFn = fetch, nhatK
   };
   taoServer(coreZ, { s, idKenh: ID_NHOM });
 
-  s.registerTool("tra_loi", { description: "Gửi 1 tin vào nhóm Zalo (chỉ nhóm sổ NP đã khai; không gửi tin riêng được). Khi HỎI LẠI về một khoản: truyền hoi_ve = message_id tin khoản đó (server tự đánh dấu khoản đang hỏi). Tin > 2000 ký tự tự chia đoạn.",
-    inputSchema: { chat_id: ID_NHOM, text: z.string().min(1).max(6000), hoi_ve: ID_TIN.optional() } },
-  boc(async ({ chat_id, text, hoi_ve }) => {
+  s.registerTool("tra_loi", { description: "Gửi 1 tin vào nhóm Zalo (chỉ nhóm sổ NP đã khai; không gửi tin riêng được). Khi HỎI LẠI về một khoản: truyền hoi_ve = message_id tin khoản đó (server tự đánh dấu khoản đang hỏi). Chốt một khoản đang hỏi mà KHÔNG ghi sổ (hoá ra là ghi chú, người gửi huỷ): truyền bo_hoi = message_id khoản đó để gỡ dấu đang hỏi. Tin > 2000 ký tự tự chia đoạn.",
+    inputSchema: { chat_id: ID_NHOM, text: z.string().min(1).max(6000), hoi_ve: ID_TIN.optional(), bo_hoi: ID_TIN.optional() } },
+  boc(async ({ chat_id, text, hoi_ve, bo_hoi }) => {
     if (!hopLe(chat_id)) return { ok: false, ly_do: "chỉ được gửi vào nhóm sổ chi phí NP đã khai trong config.json" };
-    if (hoi_ve) {
-      const g = kho.tinTheoId(hoi_ve);
-      if (!g || g.channel_id !== String(chat_id) || g.author?.bot) return { ok: false, ly_do: "hoi_ve phải là message_id của một tin người dùng trong nhóm này" };
+    for (const [ten, id] of [["hoi_ve", hoi_ve], ["bo_hoi", bo_hoi]]) {
+      if (!id) continue;
+      const g = kho.tinTheoId(id);
+      if (!g || g.channel_id !== String(chat_id) || g.author?.bot) return { ok: false, ly_do: `${ten} phải là message_id của một tin người dùng trong nhóm này` };
     }
     await gui(chat_id, text, hoi_ve);
     if (hoi_ve) await kho.react(chat_id, hoi_ve, "❓");
+    // Khoản chốt không ghi phải thôi "đang hỏi", không thì nó còn hút tin chữ của người gửi và nằm mãi trong dang_cho (review I2).
+    if (bo_hoi) await kho.unreact(chat_id, bo_hoi, "❓");
     return { ok: true };
   }));
 
@@ -79,8 +82,14 @@ export function taoServerZalo({ core, kho, api, cfg, inbox, taiFn = fetch, nhatK
     const m = kho.tinTheoId(message_id);
     const a = m && m.channel_id === String(chat_id) ? m.attachments?.[0] : null;
     if (!a) return { ok: false, ly_do: "tin này không có ảnh" };
-    const r = await taiFn(a.url, { signal: AbortSignal.timeout(20_000) });
-    if (!r.ok) return { ok: false, ly_do: `không tải được ảnh (HTTP ${r.status}) — nhờ người gửi gửi lại ảnh` };
+    // Mọi kiểu hỏng (HTTP lỗi, mạng/hết giờ, link hết hạn trả trang HTML) đều về MỘT câu cho Claude: nhờ người gửi gửi lại
+    // ảnh — "Lỗi hệ thống" thì Claude hứa "thử lại sau" mà ảnh hết hạn không bao giờ tải lại được (Review Focus 1).
+    const guiLai = (ly) => ({ ok: false, ly_do: `không tải được ảnh (${ly}) — nhờ người gửi gửi lại ảnh` });
+    let r;
+    try { r = await taiFn(a.url, { signal: AbortSignal.timeout(20_000) }) } catch (e) { return guiLai(e?.name === "TimeoutError" ? "hết giờ chờ" : "lỗi mạng") }
+    if (!r.ok) return guiLai(`HTTP ${r.status}`);
+    const loai = String(r.headers?.get?.("content-type") || "");
+    if (loai && !loai.startsWith("image/")) return guiLai(`Zalo trả ${loai.split(";")[0]}, không phải ảnh`);
     const buf = Buffer.from(await r.arrayBuffer());
     if (buf.length > 20_000_000) return { ok: false, ly_do: "ảnh quá 20MB — nhờ người gửi gửi lại ảnh nhỏ hơn" };
     mkdirSync(inbox, { recursive: true });
@@ -103,7 +112,7 @@ export function taoServerZalo({ core, kho, api, cfg, inbox, taiFn = fetch, nhatK
       content: m.content || (m.attachments.length ? "(ảnh, không có chú thích)" : "(trống)"),
       meta: { chat_id: ch, message_id: m.id, ma: String(m.ma), tac_gia: m.author.global_name, nguoi_id: m.author.id,
         co_anh: m.attachments.length ? "1" : "0", nhom: nhom[ch]?.name || "",
-        ...(goc ? { tra_loi_khoan: goc.id, tra_loi_ma: String(goc.ma) } : {}) } } });
+        ...(goc ? { tra_loi_khoan: goc.id, tra_loi_ma: String(goc.ma), tra_loi_kieu: m.message_reference.suy_ra ? "suy_ra" : "#N" } : {}) } } });
   }
   return { s, nhanCapNhat };
 }
@@ -115,10 +124,16 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const cfg = { ...tat, channels: tat.zalo?.groups || {} };
   const nhatKy = (d) => { try { mkdirSync(dir, { recursive: true }); appendFileSync(join(dir, "bo-qua.jsonl"), JSON.stringify({ ts: new Date().toISOString(), ...d }) + "\n") } catch {} };
   const kho = taoKho({ file: join(dir, "kho.jsonl"), tenBot: tat.zalo?.tenBot || "" });
-  const api = taoApi({ token: docToken(dir) });
+  const api = taoApi({ token: docToken(dir), ...(process.env.ZALO_API_GOC ? { goc: process.env.ZALO_API_GOC } : {}) }); // ZALO_API_GOC: chỉ để test
+
   const core = await taoCoreThat({ cfg, nguonTin: kho });
   const { s, nhanCapNhat } = taoServerZalo({ core, kho, api, cfg, inbox: join(dir, "inbox"), nhatKy });
+  // Phiên Claude đóng (kể cả chết đột ngột) → stdin đóng → THOÁT NGAY. Vòng long-poll không tự dừng; tiến trình mồ côi sẽ
+  // giành getUpdates của phiên mới và ghi tin vào kho với số #N riêng (review I3).
+  const thoi = () => process.exit(0);
+  process.stdin.on("end", thoi); process.stdin.on("close", thoi); process.on("SIGTERM", thoi);
   await s.connect(new StdioServerTransport());
+  s.server.onclose = thoi;
   for (;;) {
     try { for (const u of await api.layCapNhat()) await nhanCapNhat(u) }
     catch (e) { nhatKy({ loi: String(e?.message ?? e).slice(0, 200) }); await new Promise((r) => setTimeout(r, 5000)) }

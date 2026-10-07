@@ -14,6 +14,7 @@ Thuỷ / Cá nhân ứng). Thiếu gì bot hỏi lại.
 - **Đừng gửi ảnh rồi mới gõ chữ ở tin sau** — ảnh không có @ thì bot không thấy.
 - **Bot hỏi lại** → trả lời bắt đầu bằng **@Bot GWT CP** ("@Bot GWT CP đúng", "@Bot GWT CP quỹ tiền mặt"). Bot đang hỏi bạn
   nhiều khoản thì ghi thêm **#số** khoản: "@Bot GWT CP #5 đúng". Chỉ chính người gửi khoản trả lời mới tính.
+- **Bot nhắc gửi lại ảnh** cho khoản #5 → gửi 1 ảnh, chú thích **bắt đầu** bằng "@Bot GWT CP #5".
 - **Bot ghi xong** sẽ trả lời "✅ #số …". **Tin không có bot trả lời bên dưới = bot chưa thấy** (thường do quên @) → gửi lại có @.
 - **Sửa** khoản đã ✅: "@Bot GWT CP sửa #5 thành 150k" (chỉ người gửi khoản đó).
 - **Xoá**: bot không xoá được, nhờ người quản lý sổ.

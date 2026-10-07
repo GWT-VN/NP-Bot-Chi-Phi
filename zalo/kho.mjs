@@ -12,6 +12,9 @@ import { dirname } from "node:path";
 const thoat = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const co = (m, e) => (m.reactions || []).some((r) => r.me && r.emoji?.name === e);
 const truoc = (a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1);
+// Khoản bot hỏi quá 48 giờ không còn "hút" tin chữ của người gửi (review I2): ❓ chỉ gỡ khi ghi xong / bo_hoi, khoản bị bỏ
+// dở mà còn hút mãi thì một câu hỏi sổ vài ngày sau cũng bị nhận làm xác nhận cho khoản cũ.
+const CUA_SO_HOI = 48 * 3600e3;
 
 export function taoKho({ file = null, tenBot = "", botId = "bot" } = {}) {
   const tin = new Map(), theoZalo = new Map(), maCuoi = new Map();
@@ -49,18 +52,22 @@ export function taoKho({ file = null, tenBot = "", botId = "bot" } = {}) {
   const cauHoiCuoi = (gocId) => [...tin.values()].filter((m) => m.author?.bot && m.message_reference?.message_id === gocId).sort(truoc).pop();
 
   // Tin mới của người A trả lời khoản nào (Zalo không gửi kèm Reply — đo 2026-10-07):
-  //   1. Có "#N" là số của một tin CHÍNH A gửi trong nhóm → trỏ thẳng tin đó (trả lời lẫn "sửa #N").
-  //   2. Không có ảnh và A đang có ĐÚNG MỘT khoản bot đang hỏi (❓, chưa ✅) → trỏ câu hỏi cuối của bot về khoản đó.
-  //   3. Còn lại (có ảnh = khoản mới; 0 hoặc ≥2 khoản đang hỏi mà không ghi #) → không trỏ: so-core không nhận làm xác
-  //      nhận, Claude hỏi lại "khoản nào, ghi #số" — thà hỏi thêm một câu còn hơn gán nhầm khoản.
-  function suyTraLoi(ch, uid, noiDung, coAnh) {
+  //   1. "#N" là số của một tin CHÍNH A gửi trong nhóm → trỏ thẳng tin đó (trả lời lẫn "sửa #N"). Tin chữ: #N ở đâu cũng
+  //      tính. Tin ẢNH: chỉ khi chú thích MỞ ĐẦU bằng #N (gửi lại ảnh cho khoản #N theo lời bot nhắc) — "#1" giữa câu ở tin
+  //      ảnh thường là số phòng/hoá đơn của một khoản mới (review I1). Có "#N" mà không phải của A → KHÔNG trỏ gì, không rơi
+  //      xuống luật 2 (review C1: "#1 của An" do Bình gửi từng bị gắn vào khoản đang hỏi của Bình).
+  //   2. Không có ảnh và A đang có ĐÚNG MỘT khoản bot đang hỏi (❓, chưa ✅, trong 48 giờ) → trỏ câu hỏi cuối của bot về
+  //      khoản đó, đánh dấu suy_ra để Claude tự soát nội dung (tin trông như khoản riêng thì là khoản mới).
+  //   3. Còn lại → không trỏ: so-core không nhận làm xác nhận, Claude hỏi lại "khoản nào, ghi #số" — thà hỏi thêm một câu
+  //      còn hơn gán nhầm khoản.
+  function suyTraLoi(ch, uid, noiDung, coAnh, luc) {
     const cua = cuaNguoi(ch, uid);
-    const so = /#(\d{1,6})(?!\d)/.exec(noiDung);
-    if (so) { const g = cua.find((m) => m.ma === Number(so[1])); if (g) return g.id }
+    const so = (coAnh ? /^#(\d{1,6})(?!\d)/ : /#(\d{1,6})(?!\d)/).exec(noiDung);
+    if (so) { const g = cua.find((m) => m.ma === Number(so[1])); return g ? { id: g.id, suy_ra: false } : null }
     if (coAnh) return null;
-    const dangHoi = cua.filter((m) => co(m, "❓") && !co(m, "✅"));
+    const dangHoi = cua.filter((m) => co(m, "❓") && !co(m, "✅") && luc - Date.parse(m.timestamp) <= CUA_SO_HOI);
     if (dangHoi.length !== 1) return null;
-    return cauHoiCuoi(dangHoi[0].id)?.id ?? dangHoi[0].id;
+    return { id: cauHoiCuoi(dangHoi[0].id)?.id ?? dangHoi[0].id, suy_ra: true };
   }
 
   return {
@@ -72,12 +79,12 @@ export function taoKho({ file = null, tenBot = "", botId = "bot" } = {}) {
       const goc = String(z.text ?? z.caption ?? "");
       const noiDung = boMention(goc);
       const id = idMoi(z.date);
-      const ref = suyTraLoi(ch, uid, noiDung, !!anh);
+      const ref = suyTraLoi(ch, uid, noiDung, !!anh, Number(z.date) || Date.now());
       const m = { id, zalo_id: String(z.message_id), channel_id: ch, ma: (maCuoi.get(ch) || 0) + 1, content: noiDung, raw_text: goc,
         timestamp: new Date(Number(z.date) || Date.now()).toISOString(),
         author: { id: uid, global_name: z.from?.display_name || "", bot: !!z.from?.is_bot },
         attachments: anh ? [{ url: anh, content_type: "image/jpeg", filename: `anh-${id}.jpg` }] : [], reactions: [],
-        ...(ref ? { message_reference: { message_id: ref, type: 0 } } : {}) };
+        ...(ref ? { message_reference: { message_id: ref.id, type: 0, suy_ra: ref.suy_ra } } : {}) };
       luu(m); ghi({ t: "tin", m });
       return m;
     },
@@ -91,7 +98,10 @@ export function taoKho({ file = null, tenBot = "", botId = "bot" } = {}) {
       return m;
     },
     layTin: async (ch, id) => { const m = tin.get(String(id)); return m && m.channel_id === String(ch) ? m : null },
-    layTinKenh: async (ch, tuMs) => [...tin.values()].filter((m) => m.channel_id === String(ch) && Date.parse(m.timestamp) >= tuMs),
+    // Tin tự mang ❓ là một KHOẢN đang được hỏi → bỏ Reply suy ra khi trả cho quét bù, không thì so-core coi nó là câu trả
+    // lời và nó biến khỏi cả `moi` lẫn `dang_cho` sau khi khởi động lại (review I1). layTin vẫn trả nguyên (xác nhận cần Reply).
+    layTinKenh: async (ch, tuMs) => [...tin.values()].filter((m) => m.channel_id === String(ch) && Date.parse(m.timestamp) >= tuMs)
+      .map((m) => { if (m.author?.bot || !m.message_reference || !co(m, "❓")) return m; const { message_reference, ...con } = m; return con }),
     react: async (ch, id, e) => { datDau(id, e, true); ghi({ t: "dau", id: String(id), e, bat: true }) },
     unreact: async (ch, id, e) => { datDau(id, e, false); ghi({ t: "dau", id: String(id), e, bat: false }) },
     link: (ch, id) => `Zalo #${tin.get(String(id))?.ma ?? "?"} (tin ${id})`,
