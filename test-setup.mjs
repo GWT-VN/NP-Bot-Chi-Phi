@@ -1,6 +1,6 @@
 // Test kế hoạch dựng Sheet (offline) — chạy: node test-setup.mjs (exit 0 = đạt).
 import assert from "node:assert/strict";
-import { keHoachSo, keHoachTongHop, keHoachTabKenh, keHoachTabQuy, rongTheoForm, TAI_KHOAN } from "./setup.mjs";
+import { keHoachSo, keHoachTongHop, keHoachTabKenh, keHoachTabQuy, kenhCoTab, kenhGopQuy, rongTheoForm, TAI_KHOAN } from "./setup.mjs";
 import { buildFundRow } from "./books.mjs";
 
 const k = keHoachSo({ quy: [{ ten: "Quỹ công ty", goiTat: ["qct"] }, { ten: "Tiền cá nhân ứng", goiTat: [] }] });
@@ -97,4 +97,20 @@ t("rongTheoForm: độ rộng theo TÊN cột như form tab kênh; tab quỹ dù
   assert.equal(q.rong[q.header.indexOf("STT")], 100);
 });
 
+// Zalo (2026-10-07): nhóm Zalo có tab sổ như kênh; nhóm thử không gộp quỹ; Discord + Zalo chung tab → không trùng, không cộng 2 lần.
+t("kenhCoTab / kenhGopQuy: nhóm Zalo có tab; nhóm thử (thu) không gộp quỹ; chung tab → không tạo trùng, không cộng 2 lần", () => {
+  const cfg = { channels: { "1": { tab: "Chi phí chung" }, "2": { tab: "Đoàn hoạ sĩ TQ T10-2026" } },
+    zalo: { groups: { gA: { tab: "Đoàn hoạ sĩ TQ T10-2026" }, gT: { tab: "Thử Zalo", thu: true } } } };
+  assert.deepEqual(Object.keys(kenhCoTab(cfg)), ["1", "2", "gA", "gT"]);
+  assert.deepEqual(Object.keys(kenhGopQuy(cfg)), ["1", "2", "gA"]);
+  const f = keHoachTabQuy({ channels: kenhGopQuy(cfg), quy: [{ ten: "Thuỷ" }] })[0].o.B2;
+  assert.equal((f.match(/HSTACK\('Đoàn hoạ sĩ TQ T10-2026'!B2:B;/g) || []).length, 1);
+  assert.ok(!f.includes("Thử Zalo"));
+  const ops = keHoachTabKenh(["Chi phí chung", "Tổng hợp - Chi phí chung", "_state"], kenhCoTab(cfg), {});
+  assert.deepEqual(ops, [
+    { loai: "them_so", tab: "Đoàn hoạ sĩ TQ T10-2026" }, { loai: "them_th", tab: "Đoàn hoạ sĩ TQ T10-2026", th: "Tổng hợp - Đoàn hoạ sĩ TQ T10-2026" },
+    { loai: "them_so", tab: "Thử Zalo" }, { loai: "them_th", tab: "Thử Zalo", th: "Tổng hợp - Thử Zalo" },
+  ]);
+  assert.deepEqual(kenhCoTab({ channels: { "1": { tab: "A" } } }), { "1": { tab: "A" } }); // chưa có zalo → như cũ
+});
 console.log(`\n${n} test đạt`);

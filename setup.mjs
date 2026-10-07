@@ -35,10 +35,14 @@ export function keHoachTongHop(tab) {
 // Kế hoạch dựng tab theo kênh trên file ĐÃ CÓ (thuần). Kênh đầu tiên chưa có tab thì nhận lại cặp tab mặc định
 // (book.tab + "Tổng hợp") của file vừa tạo bằng cách ĐỔI TÊN — Sheets tự sửa tham chiếu trong công thức QUERY.
 // Kênh sau thì THÊM tab. Tab đã có thì bỏ qua → chạy lại vô hại.
+// Kênh có tab sổ = kênh Discord + nhóm Zalo (2026-10-07). Nhóm thử (`thu: true`) có tab riêng nhưng KHÔNG gộp vào tab
+// quỹ — tiền thử không được lẫn vào tồn quỹ thật. Kênh Discord và nhóm Zalo có thể chung một tab → các kế hoạch khử trùng tên.
+export const kenhCoTab = (cfg) => ({ ...(cfg.channels || {}), ...(cfg.zalo?.groups || {}) });
+export const kenhGopQuy = (cfg) => Object.fromEntries(Object.entries(kenhCoTab(cfg)).filter(([, k]) => !k?.thu));
 export const tenTongHop = (tab) => `Tổng hợp - ${tab}`;
 export function keHoachTabKenh(tenHienCo, channels = {}, book = {}) {
   const co = new Set(tenHienCo);
-  const ds = Object.entries(channels).map(([id, k]) => { if (!k?.tab) throw new Error(`kênh ${k?.name || id} chưa khai tab trong config.json`); return k.tab; });
+  const ds = [...new Set(Object.entries(channels).map(([id, k]) => { if (!k?.tab) throw new Error(`kênh ${k?.name || id} chưa khai tab trong config.json`); return k.tab; }))];
   const ops = [];
   let daNhanTabCu = false;
   for (const tab of ds) {
@@ -72,7 +76,7 @@ export function nguonGop(tabs) {
   return `VSTACK(${tabs.map(khoi).join(";")})`;
 }
 export function keHoachTabQuy({ channels = {}, quy = [] } = {}) {
-  const tabs = Object.values(channels).map((k) => k.tab).filter(Boolean);
+  const tabs = [...new Set(Object.values(channels).map((k) => k.tab).filter(Boolean))];
   const N = nguonGop(tabs);
   const q = (sel, where, extra = "") => `=IFERROR(QUERY(${N}; "select ${sel} where Col1 is not null${where}${extra}"; 0); "")`;
   const STT = `=ARRAYFORMULA(IF(B2:B="";"";ROW(B2:B)-1))`;
@@ -174,8 +178,8 @@ async function taoTabQuy(cfg) {
   const sheets = google.sheets({ version: "v4", auth: getAuthClient() });
   const { sheetId } = cfg.book;
   const lay = async () => (await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets(properties(sheetId,title,index),protectedRanges(protectedRangeId))" })).data.sheets;
-  const kenh = Object.values(cfg.channels || {}).map((k) => k.tab).filter(Boolean);
-  const ke = keHoachTabQuy(cfg);
+  const kenh = [...new Set(Object.values(kenhCoTab(cfg)).map((k) => k.tab).filter(Boolean))]; // định dạng MỌI tab sổ, kể cả nhóm thử
+  const ke = keHoachTabQuy({ ...cfg, channels: kenhGopQuy(cfg) });                        // tab quỹ chỉ gộp kênh thật
   let ds = await lay();
   const gid = (t) => ds.find((x) => x.properties.title === t)?.properties.sheetId;
   const them = ke.filter((k) => gid(k.title) == null).map((k) => ({ addSheet: { properties: { title: k.title, gridProperties: { frozenRowCount: k.header.length ? 1 : 0 } } } }));
@@ -245,7 +249,7 @@ async function main() {
   const force = process.argv.includes("--force");
   const cfgPath = path.join(DIR, "config.json");
   const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
-  if (process.argv.includes("--tab-kenh")) { await taoTabKenh(cfg); return taoTabQuy(cfg); } // kênh mới → tab quỹ phải đọc thêm tab đó
+  if (process.argv.includes("--tab-kenh")) { await taoTabKenh({ ...cfg, channels: kenhCoTab(cfg) }); return taoTabQuy(cfg); } // kênh mới → tab quỹ phải đọc thêm tab đó
   if (process.argv.includes("--tab-quy")) return taoTabQuy(cfg);
   if (cfg.book.sheetId && !force) throw new Error(`config.json đã có sheetId ${cfg.book.sheetId} — không tạo trùng. Cố ý tạo mới thì thêm --force.`);
 
