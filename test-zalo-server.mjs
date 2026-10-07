@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { taoServerZalo } from "./mcp/npzalo.mjs";
+import { taoServerZalo, xuLyLo } from "./mcp/npzalo.mjs";
 import { taoKho } from "./zalo/kho.mjs";
 import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -19,10 +19,10 @@ const cap = (o = {}) => ({ event_name: "message.image.received", message: { mess
 const chu = (text, o = {}) => ({ event_name: "message.text.received", message: { message_id: `z${++t0}`, date: t0, chat: { id: NHOM, chat_type: "GROUP" },
   from: { id: "u1", display_name: "Quỳnh Mai" }, text, ...o } });
 
-async function dung({ core = {}, taiFn, guiLoi = false } = {}) {
+async function dung({ core = {}, taiFn, guiLoi = false, guiChu = null } = {}) {
   const gui = [], bo = [], tb = []
   const kho = taoKho({ tenBot: "Bot GWT CP" })
-  const api = { guiChu: async (chat_id, text) => { if (guiLoi) throw new Error("Zalo sendMessage lỗi 500"); gui.push({ chat_id, text }); return [{ message_id: `b${gui.length}`, date: ++t0 }] } }
+  const api = { guiChu: guiChu ?? (async (chat_id, text) => { if (guiLoi) throw new Error("Zalo sendMessage lỗi 500"); gui.push({ chat_id, text }); return [{ message_id: `b${gui.length}`, date: ++t0 }] }) }
   const inbox = mkdtempSync(join(tmpdir(), "inbox-"))
   const { s, nhanCapNhat } = taoServerZalo({ core, kho, api, cfg: { channels: { [NHOM]: { name: "thử", tab: "Thử Zalo" } } }, inbox, taiFn, nhatKy: (d) => bo.push(d) })
   const [a, b] = InMemoryTransport.createLinkedPair()
@@ -158,4 +158,22 @@ test("[review I3] npzalo thoát khi stdin đóng — không để poller mồ c�
   const kq = await Promise.race([thoat, new Promise((r) => setTimeout(() => r(false), 3000))])
   if (!kq) p.kill("SIGKILL")
   assert.equal(kq, true, "tiến trình phải tự thoát trong 3s sau khi stdin đóng")
+})
+
+// ── Người dùng chốt 2026-10-07: các lỗi nhỏ của review cũng phải sửa ─────────────────────────────────────────────
+test("[M4] một cập nhật lỗi không làm mất các cập nhật còn lại trong cùng lượt getUpdates", async () => {
+  const da = [], bo = []
+  await xuLyLo([1, 2, 3], async (u) => { if (u === 2) throw new Error("hỏng ghi kho"); da.push(u) }, (d) => bo.push(d))
+  assert.deepEqual(da, [1, 3]); assert.equal(bo.length, 1); assert.match(bo[0].loi, /hỏng ghi kho/)
+})
+
+test("[M4] tra_loi dài lỗi ở đoạn 2 → đoạn 1 (người dùng đã thấy) vẫn lưu kho, khoản vẫn được đánh dấu ❓", async () => {
+  let lan = 0
+  const t = await dung({ guiChu: async () => { if (++lan === 2) throw new Error("Zalo sendMessage lỗi 500"); return [{ message_id: `b${lan}`, date: ++t0 }] } })
+  await t.nhanCapNhat(cap()); const [m] = await t.tinDau()
+  const r = await goi(t.c, "tra_loi", { chat_id: NHOM, text: "a".repeat(2500), hoi_ve: m.id })
+  assert.equal(r.isError, true)
+  const bot = (await t.kho.layTinKenh(NHOM, 0)).filter((x) => x.author.bot)
+  assert.equal(bot.length, 1); assert.equal(bot[0].message_reference.message_id, m.id)
+  assert.ok(m.reactions.some((x) => x.emoji.name === "❓"))
 })

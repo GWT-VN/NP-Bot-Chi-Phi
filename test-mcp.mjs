@@ -65,3 +65,11 @@ test("taoServer nhận McpServer + schema chat_id riêng; mặc định chat_id 
   const r2 = await c2.callTool({ name: "kiem_tin", arguments: { chat_id: "6ede9afa66b88fe6d6a9", message_id: "1750316131602000" } })
   assert.equal(r2.isError, true)
 })
+
+// Review 2026-10-07 (M3): bot Discord + bot Zalo là 2 tiến trình cùng dựng cây chứng từ Drive → phải đi qua CÙNG một khoá.
+test("lưu chứng từ Drive đi qua khoá liên tiến trình dùng chung (KHOA_DRIVE) — cả 2 bot dùng taoCoreThat này", async () => {
+  const { KHOA_DRIVE } = await import("./mcp/npso.mjs")
+  assert.match(KHOA_DRIVE, /np-drive\.lock$/)
+  const nguon = (await import("node:fs")).readFileSync(new URL("./mcp/npso.mjs", import.meta.url), "utf8")
+  assert.match(nguon, /voiKhoa\(KHOA_DRIVE, \(\) => drive\.luuChungTu\(/)
+})

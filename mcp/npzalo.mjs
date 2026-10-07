@@ -15,7 +15,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { taoServer, taoCoreThat } from "./npso.mjs";
 import { taoKho } from "../zalo/kho.mjs";
-import { taoApi, docToken } from "../zalo/api.mjs";
+import { taoApi, docToken, chiaDoan } from "../zalo/api.mjs";
 
 export const HUONG_DAN = "Tin nhóm Zalo tới dạng <channel source=\"npzalo\" chat_id message_id ma tac_gia nguoi_id co_anh nhom>, "
   + "thêm tra_loi_khoan / tra_loi_ma khi tin được hiểu là trả lời một khoản. Chỉ tin có @Bot mới tới. Xử lý theo CLAUDE.md; "
@@ -28,14 +28,31 @@ const boc = (fn) => async (a) => {
   catch (e) { return { content: [{ type: "text", text: `Lỗi hệ thống: ${String(e?.message ?? e).slice(0, 300)}` }], isError: true } }
 };
 
+/** Xử lý một lượt getUpdates: mỗi cập nhật tự bắt lỗi — một tin hỏng không được làm mất các tin còn lại (Zalo đã giao
+ * rồi, không giao lại). */
+export async function xuLyLo(ds, nhanCapNhat, nhatKy = () => {}) {
+  for (const u of ds) {
+    try { await nhanCapNhat(u) }
+    catch (e) { nhatKy({ loi: `xử lý tin hỏng: ${String(e?.message ?? e).slice(0, 200)}`, su_kien: u?.event_name || "" }) }
+  }
+}
+
 export function taoServerZalo({ core, kho, api, cfg, inbox, taiFn = fetch, nhatKy = () => {} }) {
   const nhom = cfg.channels || {};
   const hopLe = (ch) => Object.prototype.hasOwnProperty.call(nhom, String(ch));
   const s = new McpServer({ name: "npzalo", version: "1.0.0" }, { capabilities: { experimental: { "claude/channel": {} } }, instructions: HUONG_DAN });
 
+  // Gửi TỪNG đoạn ≤ 2000 và lưu kho ngay sau mỗi đoạn: đoạn 2 lỗi thì đoạn 1 (người dùng đã thấy) vẫn có trong kho, và khoản
+  // đang hỏi vẫn được đánh dấu ❓ ngay sau đoạn đầu — không thì câu trả lời của họ không gắn được vào khoản.
   async function gui(chat_id, text, hoi_ve = null) {
-    const kq = await api.guiChu(chat_id, text);
-    kq.forEach((r, i) => kho.ghiBot({ chat_id, zalo_id: r?.message_id, date: r?.date, text, hoi_ve: i === 0 ? hoi_ve : null }));
+    let dau = true;
+    for (const doan of chiaDoan(text)) {
+      for (const r of await api.guiChu(chat_id, doan)) {
+        kho.ghiBot({ chat_id, zalo_id: r?.message_id, date: r?.date, text: doan, hoi_ve: dau ? hoi_ve : null });
+        if (dau && hoi_ve) await kho.react(chat_id, hoi_ve, "❓");
+        dau = false;
+      }
+    }
   }
   // Ghi/sửa xong → server TỰ báo trong nhóm: không phụ thuộc Claude nhớ trả lời, và quy ước "tin không có bot trả lời = bot
   // chưa thấy" vẫn đúng. Báo lỗi KHÔNG làm hỏng kết quả ghi sổ (sổ đã ghi) — trả cảnh báo để Claude tự báo, không ghi lại.
@@ -69,8 +86,7 @@ export function taoServerZalo({ core, kho, api, cfg, inbox, taiFn = fetch, nhatK
       const g = kho.tinTheoId(id);
       if (!g || g.channel_id !== String(chat_id) || g.author?.bot) return { ok: false, ly_do: `${ten} phải là message_id của một tin người dùng trong nhóm này` };
     }
-    await gui(chat_id, text, hoi_ve);
-    if (hoi_ve) await kho.react(chat_id, hoi_ve, "❓");
+    await gui(chat_id, text, hoi_ve); // ❓ được đặt trong gui, ngay sau đoạn đầu
     // Khoản chốt không ghi phải thôi "đang hỏi", không thì nó còn hút tin chữ của người gửi và nằm mãi trong dang_cho (review I2).
     if (bo_hoi) await kho.unreact(chat_id, bo_hoi, "❓");
     return { ok: true };
@@ -135,7 +151,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   await s.connect(new StdioServerTransport());
   s.server.onclose = thoi;
   for (;;) {
-    try { for (const u of await api.layCapNhat()) await nhanCapNhat(u) }
+    try { await xuLyLo(await api.layCapNhat(), nhanCapNhat, nhatKy) }
     catch (e) { nhatKy({ loi: String(e?.message ?? e).slice(0, 200) }); await new Promise((r) => setTimeout(r, 5000)) }
   }
 }

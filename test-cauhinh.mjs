@@ -97,3 +97,22 @@ test("start-bot-zalo: dev-channel npzalo, bắt tay MCP kiểu cũ, dontAsk, --t
   assert.match(doc("./mac/stop-bot-zalo.sh"), /tmux kill-session -t npz/);
   assert.doesNotMatch(doc("./mac/stop-bot-zalo.sh"), /kill-session -t np\b(?!z)/, "tắt bot Zalo không được tắt bot Discord");
 });
+
+// Review 2026-10-07 (M2): dò "local development" ở BẤT KỲ đâu trên màn hình thì một tin Zalo / câu trả lời có cụm đó cũng
+// làm script gõ phím vào phiên; và nếu thứ tự lựa chọn khác, bấm "1" là chọn Exit → bot thoát liên tục không ai biết.
+test("[M2] chon-canh-bao.sh: chỉ nhận DÒNG LỰA CHỌN có số + đúng câu, in đúng số của dòng đó; chữ trùng ở chỗ khác → không bấm", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const { fileURLToPath } = await import("node:url"); // URL.pathname giữ "%20" của "Coding Agent" → zsh không thấy file
+  const chon = (man, f = fileURLToPath(new URL("./mac/chon-canh-bao.sh", import.meta.url))) => spawnSync("zsh", [f], { input: man, encoding: "utf8" }).stdout.trim();
+  assert.equal(chon("  WARNING: Loading development channels\n  ❯ 1. I am using this for local development\n    2. Exit\n"), "1");
+  assert.equal(chon("    1. Exit\n  ❯ 2. I am using this for local development\n"), "2");
+  assert.equal(chon("← npzalo: Quỳnh: I am using this for local development haha\n> "), "");
+  assert.equal(chon("Channels (experimental) messages from server:npzalo inject directly\n> "), "");
+});
+
+test("[M2] start-bot-zalo: bấm theo chon-canh-bao.sh; mỗi lần claude thoát ghi log, thoát liên tục thì ghi KẸT", () => {
+  const s = doc("./mac/start-bot-zalo.sh");
+  assert.match(s, /chon-canh-bao\.sh/);
+  assert.match(s, /watchdog-zalo\.log/); assert.match(s, /thoát liên tục/);
+  assert.doesNotMatch(s, /grep -q "local development"/, "không dò cụm chữ ở bất kỳ đâu trên màn hình nữa");
+});

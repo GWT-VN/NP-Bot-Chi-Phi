@@ -9,8 +9,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { voiKhoa } from "../lib/khoa.mjs";
 
 const GOC = dirname(dirname(fileURLToPath(import.meta.url)));
+// Bot Discord và bot Zalo (2026-10-07) là 2 tiến trình cùng dựng cây chứng từ Drive (đếm thư mục con +1, liệt kê rồi tạo) →
+// chạy dưới MỘT khoá trên Mac mini, không thì ghi cùng lúc ra trùng số "NN." / trùng thư mục tháng (review M3).
+export const KHOA_DRIVE = process.env.NP_KHOA_DRIVE || join(homedir(), ".claude", "channels", "np-drive.lock");
 const che = (s) => String(s).replace(/(access_token|refresh_token|token|sign|key)=[^&\s]+/gi, "$1=***").replace(/Bot [\w.-]{20,}/g, "Bot ***").slice(0, 400);
 const tra = (kq) => {
   const loi = kq && typeof kq === "object" && !Array.isArray(kq) && kq.ok === false;
@@ -121,7 +125,7 @@ export async function taoCoreThat({ cfg = null, nguonTin = null } = {}) {
       luuAnh: async ({ msgs, loai, ngay, noiDung, kenh, quy, hoaDon }) => {
         const buffers = await taiAnh(msgs);
         if (!buffers.length || !folderId) return "";
-        return drive.luuChungTu(drive.getDrive(), folderId, { kenh: tab(kenh), quy, loai, hoaDon, dmy: ngay, msgId: msgs[0].id, desc: noiDung, buffers });
+        return voiKhoa(KHOA_DRIVE, () => drive.luuChungTu(drive.getDrive(), folderId, { kenh: tab(kenh), quy, loai, hoaDon, dmy: ngay, msgId: msgs[0].id, desc: noiDung, buffers }));
       },
     } });
 }

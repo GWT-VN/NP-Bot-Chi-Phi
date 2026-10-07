@@ -100,6 +100,10 @@ các bước: plan `docs/superpowers/plans/2026-10-07-np-bot-zalo.md`. Bản ghi
 | `bot-zalo/` | Phiên Claude của bot Zalo: `CLAUDE.md`, `bot-settings.json` (KHÔNG nạp plugin Discord) |
 | `mac/*-zalo.sh` | tmux `npz`, `watchdog-zalo.sh`, launchd `com.gwt.np.zalo.watchdog` — tách hẳn bot Discord |
 
+**Khoá Drive dùng chung:** hai bot cùng dựng cây chứng từ nên việc lưu ảnh lên Drive chạy dưới một khoá
+`~/.claude/channels/np-drive.lock` (`lib/khoa.mjs`, tự phá nếu bỏ lại quá 5 phút) — không thì ghi cùng lúc ra trùng số
+"NN." / trùng thư mục tháng.
+
 **Bí mật:** chỉ trên Mac mini, `~/.claude/channels/zalo-np/.env` (`ZALO_BOT_TOKEN`; `ZALO_APP_ID`/`ZALO_APP_SECRET` của app
 OA dự phòng). Kho tin, nhật ký bỏ qua (`bo-qua.jsonl`), ảnh tạm (`inbox/`) cũng nằm ở thư mục đó.
 
