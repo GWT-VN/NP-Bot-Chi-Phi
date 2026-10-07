@@ -10,12 +10,12 @@ const ANH = [{ url: "u", filename: "bill.jpg", content_type: "image/jpeg" }];
 const msg = (id, content, o = {}) => ({ id, channel_id: KENH, content, timestamp: "2026-10-05T03:00:00.000Z",
   author: { id: "77", username: "lan", global_name: "Lan" }, attachments: ANH, reactions: [], ...o });
 
-function dung(tins, { daGhi = [], dongTheoMa = {}, loiState = false, cfg = CFG } = {}) {
+function dung(tins, { daGhi = [], dongTheoMa = {}, loiState = false, cfg = CFG, link } = {}) {
   const ghi = [], react = [], unreact = [], sua = [], anh = []
   const kho = Object.fromEntries(tins.map((m) => [`${m.channel_id}/${m.id}`, m]))
   const so = taoSo({ cfg, now: () => Date.parse("2026-10-05T05:00:00Z"),
     discord: { layTin: async (ch, id) => kho[`${ch}/${id}`] || null, layTinKenh: async (ch) => tins.filter((m) => m.channel_id === ch),
-      react: async (...a) => react.push(a), unreact: async (...a) => unreact.push(a) },
+      react: async (...a) => react.push(a), unreact: async (...a) => unreact.push(a), ...(link ? { link } : {}) },
     so: { loadProcessed: async () => { if (loiState) throw new Error("Sheets 503"); return new Set(daGhi) },
       commit: async (x) => ghi.push(x), timDong: async (id) => dongTheoMa[id] ?? null, capNhat: async (...a) => sua.push(a),
       docSo: async () => [{ dong: 2, ngay: "04/10/2026", dienGiai: "A", nguonQuy: "Quỹ công ty", thu: 0, chi: 100000 },
@@ -347,4 +347,14 @@ test("[Claude đọc] số chỉ có trên ảnh: bot hỏi kèm số, người 
   const t = dung([g, hoi, xn], { cfg: { ...CFG, quy: [] } })
   const r = await t.so.ghiKhoan({ chat_id: KENH, message_id: "400", loai: "chi", so_tien: 45000, noi_dung: "Ship hàng", hoa_don: "Không", xac_nhan_message_id: "402" })
   assert.equal(r.ok, true, r.ly_do); assert.equal(t.ghi[0].rows[0][7], 45000)
+})
+
+// Zalo (2026-10-07) không có link tới tin → nền tảng truyền discord.link riêng cho Ghi chú.
+test("nền tảng không có link tin (Zalo) truyền discord.link → Ghi chú dùng link đó, không phải discord.com", async () => {
+  const g = msg("100", "Mua vật tư 1.250.000đ", { attachments: [] })
+  const t = dung([g, tl("105", "đúng, quỹ công ty, không bill", "100")], { link: (ch, id) => `Zalo #9 (tin ${id})` })
+  const r = await t.so.ghiKhoan({ ...DUNG, hoa_don: "Không", xac_nhan_message_id: "105" })
+  assert.equal(r.ok, true, r.ly_do)
+  const gc = t.ghi[0].rows[0][10]
+  assert.match(gc, /đã xác nhận: Zalo #9 \(tin 105\)/); assert.doesNotMatch(gc, /discord\.com/)
 })

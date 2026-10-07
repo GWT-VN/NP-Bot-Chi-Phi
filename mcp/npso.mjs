@@ -18,22 +18,23 @@ const tra = (kq) => {
 };
 const boc = (fn) => async (a) => { try { return tra(await fn(a)) } catch (e) { return { content: [{ type: "text", text: `Lỗi hệ thống: ${che(e?.message ?? e)}. Có thể đã ghi một phần — gọi kiem_tin để xem tin đã vào sổ chưa trước khi thử lại; KHÔNG đoán.` }], isError: true } } };
 
-export function taoServer(core) {
-  const s = new McpServer({ name: "npso", version: "2.0.0" });
+export function taoServer(core, { s = new McpServer({ name: "npso", version: "2.0.0" }), idKenh = null } = {}) {
   const id = z.string().regex(/^\d{5,25}$/);
+  // chat_id: Discord = số (snowflake). Nền tảng khác (Zalo: mã nhóm chữ-số) truyền schema riêng — server đó tự kiểm nhóm hợp lệ.
+  const kenh = idKenh ?? id;
   s.registerTool("kiem_tin", { description: "Đọc lại 1 tin trong kênh NP và chạy luật 1–5: đúng luật chưa, thiếu gì (tien_to, so_tien, nhieu_so_tien, anh, hoa_don, quy, quy_mo_ho, noi_dung, so_tien_usd), đã ghi sổ chưa.",
-    inputSchema: { chat_id: id, message_id: id } }, boc((a) => core.kiemTin(a)));
+    inputSchema: { chat_id: kenh, message_id: id } }, boc((a) => core.kiemTin(a)));
   s.registerTool("ghi_khoan", { description: "Ghi 1 khoản vào sổ theo giá trị BẠN đọc và chốt từ tin (và ảnh). Chỉ gọi khi tin đã đủ rõ 5 ý: thu hay chi, số tiền, có ảnh chứng từ, hoá đơn (Có / Không / Chờ xuất — không nhắc = Không), nguồn quỹ (tên trong danh_sach_quy). Thiếu hoặc chưa rõ ý nào thì HỎI người gửi trước, đừng đoán. Đã hỏi và người gửi Reply trả lời → truyền xac_nhan_message_id = tin Reply đó (lệnh kiểm đúng người gửi). ngay (dd/mm/yyyy): ngày chi ghi trong tin, không có thì bỏ trống. Kết quả có tham_chieu = chỗ bộ đọc luật thấy khác giá trị bạn chốt → đọc lại tin, sai thì sua_khoan. Tự thả ✅ và gỡ ❓.",
-    inputSchema: { chat_id: id, message_id: id, loai: z.enum(["thu", "chi"]), so_tien: z.number().int().positive(), noi_dung: z.string().min(1).max(300),
+    inputSchema: { chat_id: kenh, message_id: id, loai: z.enum(["thu", "chi"]), so_tien: z.number().int().positive(), noi_dung: z.string().min(1).max(300),
       hoa_don: z.enum(["Có", "Không", "Chờ xuất"]), nguon_quy: z.string().max(60).optional(), ghi_chu: z.string().max(300).optional(), xac_nhan_message_id: id.optional(),
       ngay: z.string().regex(/^\d{1,2}\/\d{1,2}\/\d{4}$/).optional() } },
   boc((a) => core.ghiKhoan(a)));
   s.registerTool("sua_khoan", { description: "Sửa khoản ĐÃ ghi theo yêu cầu của CHÍNH người gửi khoản (yeu_cau_message_id gửi sau tin gốc). Sửa số tiền thì kèm loai.",
-    inputSchema: { chat_id: id, message_id: id, yeu_cau_message_id: id, noi_dung: z.string().min(1).max(300).optional(), loai: z.enum(["thu", "chi"]).optional(),
+    inputSchema: { chat_id: kenh, message_id: id, yeu_cau_message_id: id, noi_dung: z.string().min(1).max(300).optional(), loai: z.enum(["thu", "chi"]).optional(),
       so_tien: z.number().int().positive().optional(), hoa_don: z.enum(["Có", "Không", "Chờ xuất"]).optional(), nguon_quy: z.string().max(60).optional() } },
   boc((a) => core.suaKhoan(a)));
   s.registerTool("doc_so", { description: "Đọc sổ (chỉ đọc): các dòng + tổng thu/chi, lọc theo ngày dd/mm/yyyy và loai.",
-    inputSchema: { chat_id: id.optional(), tu_ngay: z.string().optional(), den_ngay: z.string().optional(), loai: z.enum(["thu", "chi"]).optional() } },
+    inputSchema: { chat_id: kenh.optional(), tu_ngay: z.string().optional(), den_ngay: z.string().optional(), loai: z.enum(["thu", "chi"]).optional() } },
   boc((a) => core.docSo(a)));
   s.registerTool("tin_chua_xu_ly", { description: "Liệt kê tin trong 7 ngày chưa ghi sổ và chưa có câu hỏi ❓ đang chờ — dùng khi vừa khởi động để quét bù.",
     inputSchema: {} }, boc(() => core.tinChuaXuLy({})));
@@ -83,8 +84,9 @@ export function tabCuaKenh(cfg, kenh) {
   return tab;
 }
 
-export async function taoCoreThat() {
-  const cfg = JSON.parse(readFileSync(join(GOC, "config.json"), "utf8"));
+// cfg: mặc định config.json (bot Discord). nguonTin: thay cho Discord REST (Zalo: kho tin zalo/kho.mjs, 2026-10-07).
+export async function taoCoreThat({ cfg = null, nguonTin = null } = {}) {
+  cfg ??= JSON.parse(readFileSync(join(GOC, "config.json"), "utf8"));
   const books = await import("../books.mjs");
   const drive = await import("../drive.mjs");
   const { taoSo } = await import("../so-core.mjs");
@@ -92,7 +94,7 @@ export async function taoCoreThat() {
   const tab = (kenh) => tabCuaKenh(cfg, kenh);
   if (!sheetId) throw new Error("config.json chưa có book.sheetId — chạy setup.mjs");
   return taoSo({ cfg,
-    discord: {
+    discord: nguonTin ?? {
       layTin: (ch, id) => discordGoi("GET", `/channels/${ch}/messages/${id}`, { khong404: true }),
       layTinKenh: async (ch, tuMs) => {
         const ra = []; let truoc = "";

@@ -19,7 +19,8 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
   const quyTen = new Set((cfg.quy || []).map((q) => q.ten));
   // Có danh sách quỹ (chị Tuyết Trang đặt 2026-10-06) → nguon_quy bắt buộc và phải là tên trong danh sách.
   const batBuocQuy = quyTen.size > 0;
-  const link = (ch, id) => `https://discord.com/channels/${cfg.guildId || "@me"}/${ch}/${id}`;
+  // Link tới tin (ghi vào Ghi chú khi có xác nhận / sửa). Nền tảng không có link tin (Zalo, 2026-10-07) truyền discord.link riêng.
+  const link = discord.link ?? ((ch, id) => `https://discord.com/channels/${cfg.guildId || "@me"}/${ch}/${id}`);
   const kenhHopLe = (ch) => Object.prototype.hasOwnProperty.call(cfg.channels || {}, String(ch));
   const tuChoi = (ly_do, them = {}) => ({ ok: false, ly_do, ...them });
   const sau = (a, b) => BigInt(a) > BigInt(b);

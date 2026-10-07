@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { taoServer, tabCuaKenh } from "./mcp/npso.mjs";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 
 async function noi(loi) {
   const [a, b] = InMemoryTransport.createLinkedPair()
@@ -48,4 +50,18 @@ test("tabCuaKenh: kênh có tab riêng → tab đó; không khai tab → book.ta
   assert.equal(tabCuaKenh(cfg, "2"), "Sổ chi phí")
   assert.throws(() => tabCuaKenh(cfg, "9"), /không phải kênh/)
   assert.throws(() => tabCuaKenh({ book: {}, channels: { "2": {} } }, "2"), /tab/)
+})
+
+// Zalo (2026-10-07): server npzalo tự tạo McpServer (có capability channel) và chat_id là mã nhóm chữ-số.
+test("taoServer nhận McpServer + schema chat_id riêng; mặc định chat_id vẫn chỉ số", async () => {
+  const [a, b] = InMemoryTransport.createLinkedPair()
+  const s = new McpServer({ name: "x", version: "1" })
+  const tra = taoServer({ kiemTin: async () => ({ ok: true }) }, { s, idKenh: z.string().regex(/^[A-Za-z0-9._-]{4,64}$/) })
+  assert.equal(tra, s)
+  await s.connect(a); const c = new Client({ name: "t", version: "1" }); await c.connect(b)
+  const r = await c.callTool({ name: "kiem_tin", arguments: { chat_id: "6ede9afa66b88fe6d6a9", message_id: "1750316131602000" } })
+  assert.notEqual(r.isError, true, r.content[0].text)
+  const c2 = await noi({ kiemTin: async () => ({ ok: true }) })
+  const r2 = await c2.callTool({ name: "kiem_tin", arguments: { chat_id: "6ede9afa66b88fe6d6a9", message_id: "1750316131602000" } })
+  assert.equal(r2.isError, true)
 })
