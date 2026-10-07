@@ -80,3 +80,19 @@ test("bot Zalo: hook nhật ký trỏ file có thật; CLAUDE.md có luật xác
   assert.ok(Object.keys(cfg.channels).every((k) => /^\d+$/.test(k)), "channels chỉ chứa kênh Discord");
   assert.match(doc("./.gitignore"), /^bot-zalo\/mcp\.json$/m);
 });
+
+test("start-bot-zalo: dev-channel npzalo, bắt tay MCP kiểu cũ, dontAsk, --tools Read, chạy trong bot-zalo, KHÔNG nạp channel Discord, tự bấm qua cảnh báo, quét bù sau khi npzalo lên", () => {
+  const s = doc("./mac/start-bot-zalo.sh");
+  assert.match(s, /--dangerously-load-development-channels server:npzalo/);
+  assert.match(s, /export MCP_PROTOCOL_NEGOTIATION=legacy/);
+  assert.match(s, /--permission-mode dontAsk/); assert.match(s, /--tools "Read"/);
+  assert.match(s, /cd "\$DIR\/bot-zalo"/); assert.match(s, /--mcp-config "\$DIR\/bot-zalo\/mcp\.json"/);
+  assert.match(s, /local development/); assert.match(s, /tmux send-keys -t npz/); assert.match(s, /npzalo\.mjs/); assert.match(s, /tin_chua_xu_ly/);
+  const lenh = s.split("\n").filter((l) => !l.trim().startsWith("#")).join("\n").replace(/--dangerously-load-development-channels/g, "");
+  assert.ok(!/--channels/.test(lenh), "bot Zalo không được nạp channel Discord");
+  assert.match(doc("./mac/watchdog-zalo.sh"), /tmux has-session -t npz\b/);
+  assert.match(doc("./mac/watchdog-zalo.sh"), /ZALO_BOT_TOKEN/);
+  assert.match(doc("./mac/cai-launchd-zalo.sh"), /com\.gwt\.np\.zalo\.watchdog/);
+  assert.match(doc("./mac/stop-bot-zalo.sh"), /tmux kill-session -t npz/);
+  assert.doesNotMatch(doc("./mac/stop-bot-zalo.sh"), /kill-session -t np\b(?!z)/, "tắt bot Zalo không được tắt bot Discord");
+});
