@@ -55,5 +55,10 @@
         "ứng trước"
       ]
     }
-  ]
+  ],
+  "zalo": {
+    "_help": "Bot NP trên nhóm Zalo (mcp/npzalo.mjs, spec 2026-10-07). tenBot = tên hiển thị của bot (bỏ '@<tenBot>' khỏi nội dung tin). groups: { \"<chat.id nhóm>\": { \"name\": \"...\", \"tab\": \"<tab sổ>\", \"thu\": true } } — nhóm chưa khai thì bot bỏ qua và ghi chat.id vào bo-qua.jsonl (xem bằng: node zalo/nhom.mjs). thu: true = nhóm thử: tab riêng, KHÔNG gộp vào tab quỹ. Khai nhóm xong: node setup.mjs --tab-kenh rồi khởi động lại bot Zalo.",
+    "tenBot": "Bot GWT CP",
+    "groups": {}
+  }
 }

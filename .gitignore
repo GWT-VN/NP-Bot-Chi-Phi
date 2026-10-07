@@ -4,3 +4,4 @@ credentials.json
 token.json
 logs/
 bot/mcp.json
+bot-zalo/mcp.json

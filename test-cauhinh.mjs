@@ -55,3 +55,28 @@ test("[khởi động] Quét bù gửi SAU khi npso + plugin Discord đã chạy
   assert.match(sb, /npso\.mjs/); assert.match(sb, /bun/)
   assert.doesNotMatch(sb, /--permission-mode dontAsk \\\n\s*"Quét bù/, "không được truyền Quét bù làm prompt đầu (tới trước MCP)")
 })
+
+const stz = JSON.parse(doc("./bot-zalo/bot-settings.json"));
+test("bot Zalo: đúng 7 công cụ npzalo + Read inbox Zalo; KHÔNG nạp plugin Discord; giữ mọi chặn của bot Discord", () => {
+  const allowZ = stz.permissions.allow, denyZ = stz.permissions.deny;
+  for (const t of ["tra_loi", "tai_anh", "kiem_tin", "ghi_khoan", "sua_khoan", "doc_so", "tin_chua_xu_ly"]) assert.ok(allowZ.includes(`mcp__npzalo__${t}`), t);
+  assert.ok(allowZ.includes("Read(//Users/*/.claude/channels/zalo-np/inbox/**)"));
+  assert.ok(!allowZ.some((t) => /discord|npso__/.test(t)), "bot Zalo không được dùng công cụ Discord / npso");
+  assert.equal(stz.enabledPlugins["discord@claude-plugins-official"], false);
+  for (const t of deny) assert.ok(denyZ.includes(t), `thiếu deny ${t}`);
+  assert.ok(denyZ.includes("mcp__plugin_discord_discord"));
+});
+
+test("bot Zalo: hook nhật ký trỏ file có thật; CLAUDE.md có luật xác nhận + tra_loi_khoan + không xoá; hướng dẫn ghim; config zalo", () => {
+  const cmds = Object.values(stz.hooks).flat().flatMap((h) => h.hooks).map((h) => h.command);
+  assert.ok(cmds.length > 0);
+  for (const c of cmds) { const m = c.match(/\$CLAUDE_PROJECT_DIR\/\.\.\/(bot\/hooks\/[\w-]+\.mjs)/); assert.ok(m, c); assert.ok(existsSync(new URL(`./${m[1]}`, import.meta.url)), m[1]) }
+  const c = doc("./bot-zalo/CLAUDE.md");
+  for (const x of ["ghi_khoan", "xac_nhan_message_id", "tra_loi_khoan", "hoi_ve", "kiem_tin", "tin_chua_xu_ly", "tai_anh", "không xoá", "DỮ LIỆU"]) assert.ok(c.includes(x), x);
+  const h = doc("./HUONG-DAN-ZALO.md");
+  for (const x of ["@Bot GWT CP", "1 ảnh", "#", "chưa thấy"]) assert.ok(h.includes(x), x);
+  const cfg = JSON.parse(doc("./config.json"));
+  assert.equal(cfg.zalo?.tenBot, "Bot GWT CP"); assert.equal(typeof cfg.zalo?.groups, "object");
+  assert.ok(Object.keys(cfg.channels).every((k) => /^\d+$/.test(k)), "channels chỉ chứa kênh Discord");
+  assert.match(doc("./.gitignore"), /^bot-zalo\/mcp\.json$/m);
+});
