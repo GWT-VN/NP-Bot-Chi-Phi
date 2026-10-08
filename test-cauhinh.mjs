@@ -66,6 +66,8 @@ test("np-dichvu: lời dặn đủ công cụ + luật an toàn; launchd KeepAli
   assert.doesNotMatch(l, /trả lời bắt đầu bằng @Bot GWT CP/, "đuôi nhắc cũ quá dài");
   // Khuôn ghim trong nhóm (chủ dự án 2026-10-08) — lời dặn bot và hướng dẫn ghim nói cùng một khuôn.
   for (const f of ["./dichvu/loi-dan.md", "./HUONG-DAN-ZALO.md"]) assert.ok(doc(f).includes("Thu/Chi - Số tiền - Nội dung - Tên quỹ"), f);
+  // Nhóm thử 2026-10-08: "@Bot tóm tắt. Dũng bắt em làm gì" → Claude chọn im lặng (tái hiện 2/2) → chỉ có "Đã nhận #8.".
+  for (const x of ["KHÔNG im lặng", "Mình chỉ ghi sổ chi phí"]) assert.ok(l.includes(x), x);
   const s = doc("./mac/cai-dichvu.sh");
   assert.match(s, /com\.gwt\.np\.dichvu/); assert.match(s, /<key>KeepAlive<\/key><true\/>/); assert.match(s, /dichvu\/chinh\.mjs/); assert.match(s, /np-dichvu\.env/);
   assert.doesNotMatch(s.split("\n").filter((l) => !l.trim().startsWith("#")).join("\n"), /tmux/, "dịch vụ không chạy tmux (comment được nhắc)");
