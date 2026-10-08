@@ -1,10 +1,12 @@
 // Hàng đợi việc + gói ngữ cảnh (spec 2026-10-08 §Luồng 2, §Gọi Claude): mỗi tin người dùng là một việc, chạy LẦN LƯỢT,
 // ít nhất một lần (dịch vụ chết giữa chừng thì bật lại chạy tiếp; ghi sổ vốn chống ghi trùng theo mã tin).
 import { LICH_THU_LAI } from "./hop-thu.mjs";
-import { datMoc } from "./csdl.mjs";
+import { datMoc, layMoc } from "./csdl.mjs";
 
 export const SO_LAN_TOI_DA = LICH_THU_LAI.length + 1; // lần đầu + 3 lần thử lại
-const CHO_GOI = 30 * 60e3;                             // chạm giới hạn gói / lỗi đăng nhập: chờ lâu hơn
+// Chạm giới hạn gói / lỗi đăng nhập là lỗi CỦA GÓI, không của tin: dừng CẢ hàng đợi (mốc `claude_cho_den`), không tính lần —
+// giới hạn gói claude.ai kéo dài hàng giờ, tính lần thì mọi tin đang chờ thành that_bai (review cuối I2).
+const CHO_GOI = 30 * 60e3;
 
 const gio = (luc) => new Date(luc).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const anhCua = (t, tenBot) => t.anh_tt === "da_tai" ? `ảnh: ${t.anh_tep}` : t.anh_tt === "khong_co" ? "ảnh: không có"
@@ -42,6 +44,8 @@ export function taoHangDoi({ db, kho, core, congCu, hopThu, canhBao, nhom, tenBo
     khoiPhuc: db.prepare("UPDATE viec SET trang_thai='cho' WHERE trang_thai='dang_chay'"),
   };
   async function chayMot() {
+    const choGoi = layMoc(db, "claude_cho_den");
+    if (choGoi != null && now() < choGoi) return false;
     const v0 = q.tiep.get(now());
     if (!v0) return false;
     if (Number(q.nhan.run(v0.id).changes) !== 1) return true;
@@ -62,15 +66,19 @@ export function taoHangDoi({ db, kho, core, congCu, hopThu, canhBao, nhom, tenBo
       if (!hopThu.cuaViec(v.id).length) hopThu.xepGui({ chat_id: t.chat_id, noi_dung: `Đã nhận #${t.ma}.`, viec_id: v.id, loai: "da_nhan" });
       return true;
     }
-    const goi = kq.kieu === "gioi_han" || kq.kieu === "dang_nhap";
-    if (goi) canhBao.bao(`claude_${kq.kieu}`, kq.kieu === "gioi_han" ? "Claude chạm giới hạn gói — các việc tạm chờ 30 phút."
-      : "Claude lỗi đăng nhập — kiểm tra CLAUDE_CODE_OAUTH_TOKEN (chạy lại `claude setup-token` trên Mac mini).");
+    if (kq.kieu === "gioi_han" || kq.kieu === "dang_nhap") {
+      q.traLan.run(v.id);
+      datMoc(db, "claude_cho_den", now() + CHO_GOI);
+      canhBao.bao(`claude_${kq.kieu}`, kq.kieu === "gioi_han" ? "Claude chạm giới hạn gói — cả hàng đợi tạm dừng 30 phút rồi thử lại."
+        : "Claude lỗi đăng nhập — cả hàng đợi tạm dừng; kiểm tra CLAUDE_CODE_OAUTH_TOKEN (chạy lại `claude setup-token` trên Mac mini).");
+      return true;
+    }
     if (v.so_lan >= SO_LAN_TOI_DA) {
       q.thatBai.run(kq.loi || kq.kieu, tom, now(), v.id);
       canhBao.bao(`viec_that_bai:${v.id}`, `Khoản #${t.ma} (nhóm ${n?.name ?? t.chat_id}) hỏng sau ${v.so_lan} lần: ${kq.loi || kq.kieu}`);
       hopThu.xepGui({ chat_id: t.chat_id, noi_dung: `Khoản #${t.ma} chưa xử lý được, đã báo người quản lý.`, viec_id: v.id, loai: "that_bai" });
     } else {
-      q.henLai.run(now() + (goi ? CHO_GOI : lich[v.so_lan - 1]), kq.loi || kq.kieu, tom, v.id);
+      q.henLai.run(now() + lich[v.so_lan - 1], kq.loi || kq.kieu, tom, v.id);
     }
     return true;
   }

@@ -56,14 +56,17 @@ test("lỗi → thử lại sau 1, 5, 15 phút; lần chạy lại thấy 'đã 
   assert.equal(t.gui().at(-1).noi_dung, "Khoản #1 chưa xử lý được, đã báo người quản lý.")
 })
 
-test("chạm giới hạn gói → cảnh báo, chờ 30 phút; huỷ (dịch vụ tắt) → về 'cho', không tính lần", async () => {
-  const t = dung([{ ok: false, kieu: "gioi_han" }, { ok: false, kieu: "huy" }, XONG])
-  const a = t.tin("@Bot GWT CP chi 50k")
+test("[I2] chạm giới hạn gói → cảnh báo, DỪNG CẢ hàng đợi 30 phút, KHÔNG tính lần; huỷ (dịch vụ tắt) → về 'cho', không tính lần", async () => {
+  const t = dung([{ ok: false, kieu: "gioi_han" }, { ok: false, kieu: "huy" }, XONG, XONG])
+  const a = t.tin("@Bot GWT CP chi 50k"), b = t.tin("@Bot GWT CP chi 60k")
   await t.hd.chayMot(); assert.deepEqual(t.bao, ["claude_gioi_han"])
+  assert.deepEqual([t.viec(a).trang_thai, t.viec(a).so_lan], ["cho", 0])
   t.troi(LICH_THU_LAI[0]); assert.equal(await t.hd.chayMot(), false)
+  assert.equal(t.nguCanh.length, 1, "việc b không được chạy trong lúc chờ gói")
   t.troi(30 * 60e3); await t.hd.chayMot()
-  assert.deepEqual([t.viec(a).trang_thai, t.viec(a).so_lan], ["cho", 1])
-  await t.hd.chayMot(); assert.equal(t.viec(a).trang_thai, "xong")
+  assert.deepEqual([t.viec(a).trang_thai, t.viec(a).so_lan], ["cho", 0])
+  await t.hd.chayMot(); assert.deepEqual([t.viec(a).trang_thai, t.viec(a).so_lan], ["xong", 1])
+  await t.hd.chayMot(); assert.equal(t.viec(b).trang_thai, "xong")
 })
 
 test("khôi phục: việc 'dang_chay' lúc dịch vụ chết → về 'cho'", () => {
