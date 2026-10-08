@@ -1,6 +1,6 @@
 // Test tầng ghi sổ NP (offline, không mạng) — chạy: node test-books.mjs (exit 0 = đạt).
 import assert from "node:assert/strict";
-import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, dongTuRange, yeuCauTheoForm } from "./books.mjs";
+import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, dongTuRange, yeuCauTheoForm, capNhatDong } from "./books.mjs";
 
 let n = 0;
 const t = (ten, fn) => { fn(); n++; console.log("  ✓ " + ten); };
@@ -69,6 +69,30 @@ t("yeuCauTheoForm: dòng dữ liệu đầu tiên (2) không có dòng mẫu →
   assert.deepEqual(yeuCauTheoForm({ gid: 7, dong: 2, link: "https://drive.google.com/drive/folders/a" }).map((x) => Object.keys(x)[0]), ["updateCells"]);
   assert.deepEqual(yeuCauTheoForm({ gid: 7, dong: 2, link: "https://example.com/x" }), []);
   assert.deepEqual(yeuCauTheoForm({ gid: 7, dong: 5, link: "" }).map((x) => Object.keys(x)[0]), ["copyPaste"]);
+});
+
+// Dịch vụ Zalo 2026-10-08: sửa ngày khoản (USER_ENTERED như lúc commit) + bỏ "không có ảnh chứng từ" khi đã bổ sung.
+const ta = async (ten, fn) => { await fn(); n++; console.log("  ✓ " + ten); };
+function sheetsGia(ghiChu) {
+  const goi = [];
+  return { goi, sheets: { spreadsheets: { values: {
+    get: async () => ({ data: { values: [[ghiChu]] } }),
+    batchUpdate: async (x) => { goi.push(["batch", x]); }, update: async (x) => { goi.push(["update", x]); } } } } };
+}
+await ta("capNhatDong: boGhiChu bỏ cụm ghi chú rồi nối ghiChuThem; ngay ghi cột B USER_ENTERED dd/mm/yyyy", async () => {
+  const s = sheetsGia("không có ảnh chứng từ (đã xác nhận); đã xác nhận: Zalo #2 (tin 1)");
+  await capNhatDong("S", "Đoàn", 7, { boGhiChu: "không có ảnh chứng từ", ghiChuThem: "đã bổ sung chứng từ 08/10" }, { sheets: s.sheets });
+  assert.deepEqual(s.goi[0][1].requestBody.data, [{ range: "'Đoàn'!K7", values: [["đã xác nhận: Zalo #2 (tin 1); đã bổ sung chứng từ 08/10"]] }]);
+  const g = sheetsGia("");
+  const r = await capNhatDong("S", "Đoàn", 7, { ngay: "6/10/2026" }, { sheets: g.sheets });
+  assert.deepEqual(g.goi.map((x) => x[0]), ["update"]); assert.equal(r.updated, true);
+  assert.deepEqual([g.goi[0][1].range, g.goi[0][1].valueInputOption, g.goi[0][1].requestBody.values], ["'Đoàn'!B7", "USER_ENTERED", [["06/10/2026"]]]);
+});
+await ta("[Review Focus] capNhatDong không truyền tuỳ chọn mới → nối ghi chú y như cũ (bot Discord)", async () => {
+  const s = sheetsGia("không có ảnh chứng từ");
+  await capNhatDong("S", "Chi phí chung", 3, { ghiChuThem: "sửa theo X" }, { sheets: s.sheets });
+  assert.deepEqual(s.goi[0][1].requestBody.data, [{ range: "'Chi phí chung'!K3", values: [["không có ảnh chứng từ; sửa theo X"]] }]);
+  assert.deepEqual(await capNhatDong("S", "T", 3, {}, { sheets: sheetsGia("").sheets }), { updated: false });
 });
 
 console.log(`\n${n} test đạt`);

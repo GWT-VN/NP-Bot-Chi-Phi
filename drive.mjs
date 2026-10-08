@@ -168,10 +168,11 @@ export function duongChungTu({ kenh, quy, loai, hoaDon, dmy }) {
   return [kenh, String(quy || "").trim() || "Chưa rõ quỹ", nhom, ...thoiGian];
 }
 
-export async function luuChungTu(drive, rootId, { kenh, quy, loai, hoaDon, dmy, msgId, desc, buffers, anhMsgId = null }) {
-  if (!rootId || !buffers?.length) return "";
+export async function luuChungTu(drive, rootId, { kenh, quy, loai, hoaDon, dmy, msgId, desc, buffers, anhMsgId = null, taoRong = false }) {
+  // taoRong (dịch vụ Zalo, 2026-10-08): khoản chưa có ảnh vẫn có thư mục để người gửi tự tải chứng từ vào. Bot Discord: false.
+  if (!rootId || (!buffers?.length && !taoRong)) return "";
   const { folderId: parentId } = await ensurePath(drive, rootId, duongChungTu({ kenh, quy, loai, hoaDon, dmy }));
-  return luuVaoGiaoDich(drive, parentId, { msgId, desc, buffers, anhMsgId });
+  return luuVaoGiaoDich(drive, parentId, { msgId, desc, buffers: buffers || [], anhMsgId });
 }
 
 // Folder giao dịch (tra theo msgId) + upload ảnh chưa có — dùng chung cho cả hai kiểu cây.
@@ -201,6 +202,15 @@ async function luuVaoGiaoDich(drive, parentId, { msgId, desc, buffers, anhMsgId 
     await uploadBuffer(drive, folderId, fname, b.buffer);
   }
   return `https://drive.google.com/drive/folders/${folderId}`;
+}
+
+/** Thư mục đã có ít nhất 1 file (không tính thùng rác) chưa — dịch vụ Zalo quét chứng từ bổ sung (2026-10-08). */
+export async function thuMucCoFile(drive, folderId) {
+  const res = await drive.files.list({
+    q: `'${q(folderId)}' in parents and trashed = false`, fields: "files(id)", pageSize: 1,
+    supportsAllDrives: true, includeItemsFromAllDrives: true,
+  });
+  return (res.data.files?.length ?? 0) > 0;
 }
 
 // Tạo 1 folder con `name` trong `parentId` (hoặc My Drive nếu không có parent). Trả {folderId, link}.

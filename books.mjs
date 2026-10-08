@@ -304,8 +304,7 @@ export async function timDongTheoMaTin(sheetId, tab, msgId) {
 }
 
 // Ghi đè các trường được sửa trên MỘT dòng (đã tìm theo Mã tin). Không đụng STT/Tồn (công thức) và cột L.
-export async function capNhatDong(sheetId, tab, rowNum, { dienGiai, hoaDon, nguonQuy, loai, amount, ghiChuThem } = {}) {
-  const sheets = sheetsApi();
+export async function capNhatDong(sheetId, tab, rowNum, { dienGiai, hoaDon, nguonQuy, loai, amount, ghiChuThem, boGhiChu, ngay } = {}, { sheets = sheetsApi() } = {}) {
   const o = (k, v) => ({ range: `'${tab}'!${CHU[COT[k]]}${rowNum}`, values: [[v]] });
   const data = []
   if (dienGiai !== undefined) data.push(o("dienGiai", dienGiai));
@@ -322,14 +321,19 @@ export async function capNhatDong(sheetId, tab, rowNum, { dienGiai, hoaDon, nguo
     if (!loai || amount === undefined) throw new Error("sửa số tiền phải kèm cả loai lẫn amount");
     data.push(o("thu", loai === "thu" ? Number(amount) : ""), o("chi", loai === "thu" ? "" : Number(amount)));
   }
-  if (ghiChuThem) {
+  if (ghiChuThem || boGhiChu) {
     const r = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!K${rowNum}` });
     const cu = String(((r.data.values || [])[0] || [])[0] ?? "").trim();
-    data.push(o("ghiChu", cu ? `${cu}; ${ghiChuThem}` : ghiChuThem));
+    // boGhiChu (dịch vụ Zalo 2026-10-08): bỏ cụm ghi chú bắt đầu bằng chuỗi này (vd "không có ảnh chứng từ" khi đã bổ sung).
+    const giu = boGhiChu ? cu.split("; ").filter((p) => !p.startsWith(boGhiChu)).join("; ") : cu;
+    data.push(o("ghiChu", [giu, ghiChuThem].filter(Boolean).join("; ")));
   }
-  if (!data.length) return { updated: false };
-  await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: sheetId, requestBody: { valueInputOption: "RAW", data } });
-  return { updated: true, rowNum, so: data.length };
+  if (!data.length && ngay === undefined) return { updated: false };
+  if (data.length) await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: sheetId, requestBody: { valueInputOption: "RAW", data } });
+  // Ngày ghi USER_ENTERED như commit (sheet locale vi đọc "dd/mm/yyyy" thành NGÀY) — RAW thành chữ, tab quỹ lọc theo ngày hỏng.
+  if (ngay !== undefined) await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${tab}'!${CHU[COT.ngay]}${rowNum}`,
+    valueInputOption: "USER_ENTERED", requestBody: { values: [[toDMY(ngay)]] } });
+  return { updated: true, rowNum, so: data.length + (ngay !== undefined ? 1 : 0) };
 }
 
 // Đọc toàn bộ sổ (cho doc_so). Ngày giữ dạng chữ dd/mm/yyyy, số giữ dạng số.
