@@ -59,7 +59,9 @@
   "zalo": {
     "_help": "Bot NP trên nhóm Zalo = dịch vụ nền np-dichvu (dichvu/chinh.mjs, spec 2026-10-08). tenBot: tên hiển thị của bot (bỏ '@<tenBot>' khỏi nội dung). groups: { \"<chat.id nhóm>\": { \"name\", \"tab\", \"thu\"?: true } } — nhóm chưa khai thì bot bỏ qua và hiện ở `node dichvu/chinh.mjs --kiem-tra` (nhom_chua_khai). thu: true = nhóm thử, tab riêng, KHÔNG gộp tab quỹ. nhomVanHanh: chat.id nhóm Zalo nhận cảnh báo (rỗng = chỉ ghi nhật ký). Khai xong: node setup.mjs --tab-kenh rồi launchctl kickstart -k gui/$(id -u)/com.gwt.np.dichvu.",
     "tenBot": "Bot GWT CP",
-    "groups": {},
+    "groups": {
+      "zgr-0f5948f73898d1c68889": { "name": "Nhóm thử Zalo", "tab": "Thử Zalo", "thu": true }
+    },
     "nhomVanHanh": ""
   },
   "dichvu": { "cong": 8790, "model": "claude-sonnet-5-5", "maxTurns": 12, "thoiGianToiDaGiay": 240 }
