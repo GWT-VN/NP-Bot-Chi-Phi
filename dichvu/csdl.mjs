@@ -52,6 +52,9 @@ export const datMoc = (db, khoa, luc, ghiChu = null) =>
   db.prepare("INSERT INTO moc(khoa,luc,ghi_chu) VALUES (?,?,?) ON CONFLICT(khoa) DO UPDATE SET luc=excluded.luc, ghi_chu=excluded.ghi_chu").run(khoa, luc, ghiChu);
 export const layMoc = (db, khoa) => db.prepare("SELECT luc FROM moc WHERE khoa=?").get(khoa)?.luc ?? null;
 
+/** `date` của Zalo → mili giây. Chưa đo được đơn vị (review cuối I3): số < 1e11 là giây (ms của năm 2026 có 13 chữ số). */
+export const msZalo = (d) => { const n = Number(d); return n > 0 ? (n < 1e11 ? n * 1000 : n) : null };
+
 const thoat = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // Khoản bot hỏi quá 48 giờ không còn "hút" tin chữ của người gửi (review I2).
 export const CUA_SO_HOI = 48 * 3600e3;
@@ -105,7 +108,7 @@ export function taoKhoTin(db, { tenBot = "", nenTang = "zalo" } = {}) {
     return giaoDich(db, () => {
       if (q.theoGoc.get(nenTang, String(z.message_id))) return null;
       const ch = String(z.chat?.id ?? ""), uid = String(z.from?.id ?? ""), anh = z.photo_url || z.photo || "";
-      const goc = String(z.text ?? z.caption ?? ""), noiDung = boMention(goc), luc = Number(z.date) || now;
+      const goc = String(z.text ?? z.caption ?? ""), noiDung = boMention(goc), luc = msZalo(z.date) ?? now;
       const ref = suyTraLoi(ch, uid, noiDung, !!anh, luc);
       const t = { id: idMoi(luc), nen_tang: nenTang, chat_id: ch, ma: (q.maCuoi.get(ch)?.m ?? 0) + 1, msg_goc: String(z.message_id),
         nguoi_id: uid, ten: z.from?.display_name || "", la_bot: 0, noi_dung: noiDung, noi_dung_goc: goc, luc,

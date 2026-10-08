@@ -88,3 +88,10 @@ test("[I1] gửi được mà ghi CSDL sau đó lỗi → không gửi lại, đ
   t.troi(LICH_THU_LAI[0]); while (await ht.guiMot());
   assert.deepEqual(da, ["một"]); assert.equal(dongGui(t.db)[0].trang_thai, "da_gui"); assert.match(loi[0] ?? "", /^gui_ghi_loi:/)
 })
+
+test("[I3] sendMessage trả date bằng GIÂY → tin bot lưu mili giây", async () => {
+  const t = dung()
+  const ht = taoHopThu({ db: t.db, kho: t.kho, now: t.gio, api: { guiChu: async () => [{ message_id: "b1", date: 1791300000 }] } })
+  ht.xepGui({ chat_id: NHOM, noi_dung: "x", loai: "tra_loi" }); while (await ht.guiMot());
+  assert.equal(t.db.prepare("SELECT luc FROM tin WHERE la_bot=1").get().luc, 1791300000000)
+})

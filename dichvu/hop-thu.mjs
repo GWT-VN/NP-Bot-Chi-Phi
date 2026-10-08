@@ -2,7 +2,7 @@
 // lại, ghi tin bot; CHỈ khi câu hỏi đã tới tay người dùng mới chuyển khoản sang `dang_hoi`. Cảnh báo = tin vào nhóm vận hành,
 // cùng khoá không lặp trong 30 phút (mốc `canh_bao:<khoá>`).
 import { chiaDoan } from "../zalo/api.mjs";
-import { giaoDich, datMoc, layMoc } from "./csdl.mjs";
+import { giaoDich, datMoc, layMoc, msZalo } from "./csdl.mjs";
 
 export const LICH_THU_LAI = [60e3, 300e3, 900e3]; // lần đầu + 3 lần thử lại
 
@@ -51,7 +51,7 @@ export function taoHopThu({ db, kho, api, nhatKy = () => {}, baoLoi = () => {}, 
     try {
       giaoDich(db, () => {
         q.daGui.run(msgGoc, g.id);
-        kho.ghiBot({ chat_id: g.chat_id, msg_goc: msgGoc, luc: Number(r?.date) || now(), noi_dung: g.noi_dung, hoi_ve: g.thu_tu === 0 ? g.hoi_ve : null });
+        kho.ghiBot({ chat_id: g.chat_id, msg_goc: msgGoc, luc: msZalo(r?.date) ?? now(), noi_dung: g.noi_dung, hoi_ve: g.thu_tu === 0 ? g.hoi_ve : null });
         if (g.hoi_ve && g.thu_tu === 0) kho.danhDauDangHoi(g.hoi_ve);
       });
       nhatKy({ gui: g.id, loai: g.loai, ok: true });

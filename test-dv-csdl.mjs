@@ -142,3 +142,10 @@ test("so-core THẬT + nguồn tin: quét bù thấy khoản đang hỏi; ngư�
   assert.equal(r.ok, true, r.ly_do); assert.match(ghi[0].rows[0][10], /Zalo #/)
   assert.equal(anhLuu[0].msgs[0].attachments[0].tep, "/x/1.jpg"); assert.equal(k.lay(g.id).trang_thai, "da_ghi")
 })
+
+// Review cuối (I3): chưa đo đơn vị `date` của Zalo — trả giây thì sổ ghi ngày 01/01/1970 mà không ai biết. Giây → ms.
+test("[I3] date Zalo tính bằng GIÂY → đổi ra mili giây; mili giây giữ nguyên", () => {
+  const { k } = moi()
+  assert.equal(k.nhanTin(cn("@Bot GWT CP chi 50k", { date: 1791300000 })).luc, 1791300000000)
+  assert.equal(k.nhanTin(cn("@Bot GWT CP chi 60k", { date: 1791300001234 })).luc, 1791300001234)
+})
