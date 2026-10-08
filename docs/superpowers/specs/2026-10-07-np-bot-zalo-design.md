@@ -1,5 +1,8 @@
 # NP Bot Chi Phí trên nhóm Zalo — thiết kế (2026-10-07)
 
+> **2026-10-08:** phần CHẠY (channel Claude Code, tmux, watchdog, kho JSONL, mục "Thiết kế" và "Phiên bot") được thay bởi
+> `2026-10-08-np-dichvu-design.md` (dịch vụ nền + `claude -p --bare` + SQLite). Phần nghiệp vụ dưới đây vẫn hiệu lực.
+
 ## Vì sao
 
 Đoàn hoạ sĩ TQ (6–16/10/2026) báo chi tiêu trong **nhóm Zalo** "Chi tiêu đoàn TQ 6-16/10" (8 thành viên, trưởng nhóm
