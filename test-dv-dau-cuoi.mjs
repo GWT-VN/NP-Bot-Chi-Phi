@@ -18,7 +18,7 @@ async function cho(dk, ms = 20000) { const het = Date.now() + ms; while (Date.no
 
 async function dung({ now = Date.now, cham = 0 } = {}) {
   const goc = mkdtempSync(join(tmpdir(), "dv-e2e-"))
-  const thuMuc = { goc, csdl: join(goc, "np.sqlite"), anh: join(goc, "anh"), saoLuu: join(goc, "sao-luu"), chay: join(goc, "chay"), logs: join(goc, "logs") }
+  const thuMuc = { goc, csdl: join(goc, "np.sqlite"), anh: join(goc, "anh"), saoLuu: join(goc, "sao-luu"), chay: join(goc, "chay"), logs: join(goc, "logs"), cauHinhClaude: join(goc, "claude-cfg") }
   const zalo = { vao: [], gui: [], dangGui: 0,
     async layCapNhat() { if (this.vao.length) return this.vao.splice(0); await new Promise((r) => setTimeout(r, 30)); return [] },
     async guiChu(chat_id, text) { this.dangGui++; if (cham) await new Promise((r) => setTimeout(r, cham)); this.gui.push({ chat_id, text }); return [{ message_id: `b${this.gui.length}`, date: now() }] } }
@@ -45,6 +45,8 @@ test("tin ảnh đủ thông tin → claude ghi sổ → dịch vụ tự báo �
     assert.equal(readdirSync(t.thuMuc.anh).length, 1)
     // ✅ có thể đi trước khi claude giả thoát hẳn → chờ việc 'xong', không kiểm ngay.
     await cho(() => t.dv.db.prepare("SELECT trang_thai FROM viec").get().trang_thai === "xong")
+    // Không --bare (chỉ nhận API key): cách ly bằng thư mục cấu hình Claude riêng + đăng nhập bằng token gói claude.ai.
+    assert.deepEqual(JSON.parse(readFileSync(join(t.thuMuc.chay, "moi-truong.json"), "utf8")), { CLAUDE_CONFIG_DIR: t.thuMuc.cauHinhClaude, co_token: true })
   } finally { await t.dv.dung() }
 })
 

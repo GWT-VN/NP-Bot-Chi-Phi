@@ -56,7 +56,7 @@ test("[khởi động] Quét bù gửi SAU khi npso + plugin Discord đã chạy
   assert.doesNotMatch(sb, /--permission-mode dontAsk \\\n\s*"Quét bù/, "không được truyền Quét bù làm prompt đầu (tới trước MCP)")
 })
 
-// np-dichvu (2026-10-08): bot Zalo là dịch vụ nền launchd + claude -p --bare (thay channel/tmux).
+// np-dichvu (2026-10-08): bot Zalo là dịch vụ nền launchd + claude -p (thay channel/tmux).
 test("np-dichvu: lời dặn đủ công cụ + luật an toàn; launchd KeepAlive chạy dichvu/chinh.mjs, cần file bí mật; config zalo.nhomVanHanh + dichvu; hướng dẫn ghim", () => {
   const l = doc("./dichvu/loi-dan.md");
   for (const x of ["kiem_tin", "ghi_khoan", "sua_khoan", "doc_so", "tra_loi", "hoi_ve", "bo_hoi", "xac_nhan_message_id", "TRẢ LỜI CHO",

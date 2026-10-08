@@ -10,11 +10,12 @@ const d = mkdtempSync(join(tmpdir(), "cl-"));
 const gia = (ten, than) => { const f = join(d, ten); writeFileSync(f, `#!/usr/bin/env node\n${than}\n`); chmodSync(f, 0o755); return f };
 const chay = (f, o = {}) => chayClaude({ chuongTrinh: f, args: [], env: { PATH: process.env.PATH }, cwd: d, thoiGianMs: 3000, ...o });
 
-test("lenhClaude: --bare, chỉ Read thư mục ảnh (đường tuyệt đối '//'), MCP HTTP 127.0.0.1 + Bearer, strict, dontAsk, json, không lưu phiên", () => {
+test("lenhClaude: KHÔNG --bare (chỉ nhận API key, đo 2026-10-08), không nạp settings, chỉ Read thư mục ảnh (đường tuyệt đối '//'), MCP HTTP 127.0.0.1 + Bearer, strict, dontAsk, json, không lưu phiên", () => {
   const a = lenhClaude({ nguCanh: "NGỮ CẢNH", loiDan: "LỜI DẶN", model: "claude-sonnet-5-5", maxTurns: 12, cong: 8790, token: "tk", thuMucAnh: "/Users/x/anh" })
   const sau = (c) => a[a.indexOf(c) + 1]
   assert.equal(sau("-p"), "NGỮ CẢNH"); assert.equal(sau("--system-prompt"), "LỜI DẶN"); assert.equal(sau("--tools"), "Read")
-  for (const c of ["--bare", "--strict-mcp-config", "--no-session-persistence"]) assert.ok(a.includes(c), c)
+  for (const c of ["--strict-mcp-config", "--no-session-persistence"]) assert.ok(a.includes(c), c)
+  assert.ok(!a.includes("--bare"), "--bare không đọc token gói claude.ai"); assert.equal(sau("--setting-sources"), "")
   assert.equal(sau("--permission-mode"), "dontAsk"); assert.equal(sau("--output-format"), "json"); assert.equal(sau("--max-turns"), "12")
   assert.deepEqual(sau("--allowedTools").split(","), ["mcp__np__kiem_tin", "mcp__np__ghi_khoan", "mcp__np__sua_khoan", "mcp__np__doc_so", "mcp__np__tra_loi", "Read(//Users/x/anh/**)"])
   assert.deepEqual(JSON.parse(sau("--mcp-config")), { mcpServers: { np: { type: "http", url: "http://127.0.0.1:8790/mcp", headers: { Authorization: "Bearer tk" } } } })

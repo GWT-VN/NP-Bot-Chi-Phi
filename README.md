@@ -96,7 +96,7 @@ sổ. Vì sao: spec `docs/superpowers/specs/2026-10-08-np-dichvu-design.md` (ngh
 | `dichvu/chinh.mjs` | Điểm vào (launchd), cấu hình/bí mật, nhật ký, sao lưu + dọn, `--kiem-tra`, các vòng nhận/worker/gửi/bảo trì |
 | `dichvu/csdl.mjs` | SQLite `~/Bots/np-dichvu/np.sqlite`: tin (#N, luật hiểu trả lời), việc, hộp thư, mốc giờ; adapter cho so-core |
 | `dichvu/zalo.mjs` · `hop-thu.mjs` | Nhận tin + tải ảnh ngay · gửi tin có thử lại + cảnh báo nhóm vận hành |
-| `dichvu/hang-doi.mjs` · `claude.mjs` · `cong-cu.mjs` | Mỗi tin một việc → `claude -p --bare` (lời dặn `dichvu/loi-dan.md`) → công cụ MCP HTTP theo token việc |
+| `dichvu/hang-doi.mjs` · `claude.mjs` · `cong-cu.mjs` | Mỗi tin một việc → `claude -p` với thư mục cấu hình riêng `~/Bots/np-dichvu/claude-cfg` (lời dặn `dichvu/loi-dan.md`) → công cụ MCP HTTP theo token việc |
 | `mac/cai-dichvu.sh` | launchd `com.gwt.np.dichvu` (KeepAlive) |
 
 **Bí mật** (chỉ Mac mini, quyền 600): `~/Bots/.secrets/np-dichvu.env` — `ZALO_BOT_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN` (từ

@@ -1,12 +1,14 @@
-// Chạy `claude -p --bare` cho MỘT việc (spec 2026-10-08 §Gọi Claude). Đường dẫn chương trình truyền vào được — test dùng
+// Chạy `claude -p` cho MỘT việc (spec 2026-10-08 §Gọi Claude). Đường dẫn chương trình truyền vào được — test dùng
 // chương trình giả. Mỗi lần chạy là một nhóm tiến trình riêng: quá giờ / dịch vụ tắt thì giết cả nhóm, không để mồ côi.
+// KHÔNG --bare: chế độ đó chỉ nhận ANTHROPIC_API_KEY, không đọc token gói claude.ai (help CLI 2.1.293, đo trên Mac mini
+// 2026-10-08). Cách ly thay bằng: CLAUDE_CONFIG_DIR riêng, trống (chinh.mjs) + --setting-sources "" + --strict-mcp-config.
 import { spawn } from "node:child_process";
 
 const CONG_CU = ["kiem_tin", "ghi_khoan", "sua_khoan", "doc_so", "tra_loi"].map((t) => `mcp__np__${t}`);
 
 export function lenhClaude({ nguCanh, loiDan, model, maxTurns, cong, token, thuMucAnh }) {
   const mcp = { mcpServers: { np: { type: "http", url: `http://127.0.0.1:${cong}/mcp`, headers: { Authorization: `Bearer ${token}` } } } };
-  return ["-p", nguCanh, "--bare", "--model", model, "--system-prompt", loiDan,
+  return ["-p", nguCanh, "--setting-sources", "", "--model", model, "--system-prompt", loiDan,
     // Quy tắc quyền cho đường dẫn tuyệt đối viết "//" ở đầu (Read(//Users/...)).
     "--tools", "Read", "--add-dir", thuMucAnh, "--allowedTools", [...CONG_CU, `Read(/${thuMucAnh}/**)`].join(","),
     // ponytail: token việc nằm trong tham số dòng lệnh (ps của cùng user thấy được); chỉ sống trong lúc việc chạy, chỉ nghe 127.0.0.1.

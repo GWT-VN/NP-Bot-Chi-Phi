@@ -22,15 +22,17 @@ JSONL. Phần nghiệp vụ của bản đó vẫn giữ: quy định gửi, 15 
 
 | # | Quyết định |
 |---|---|
-| 1 | Gọi Claude bằng **`claude -p --bare`**, mỗi việc một lần, dùng **gói claude.ai** qua token 1 năm `claude setup-token` (biến `CLAUDE_CODE_OAUTH_TOKEN`). Không dùng API key, không dùng channel. |
+| 1 | Gọi Claude bằng **`claude -p`** (cách ly bằng thư mục cấu hình riêng — xem §Gọi Claude), mỗi việc một lần, dùng **gói claude.ai** qua token 1 năm `claude setup-token` (biến `CLAUDE_CODE_OAUTH_TOKEN`). Không dùng API key, không dùng channel. |
 | 2 | **Giai đoạn 1: Zalo** chạy trên dịch vụ mới; bot Discord giữ nguyên. **Giai đoạn 2** (spec riêng, sau đoàn TQ): thêm adapter Discord, tắt bot Discord kiểu Claude Code + plugin, bỏ khoá Drive. |
 | 3 | Cảnh báo gửi vào **một nhóm Zalo "vận hành"** có bot. Ai nhận thì do thành viên nhóm quyết định. |
 
 ## Sự thật đã kiểm (tài liệu Claude Code, 2026-10-08)
 
 - `-p` không hiện hộp tin cậy thư mục hay hộp duyệt MCP. Công cụ chưa được cho phép thì bị từ chối, không treo.
-- `--bare` bỏ qua CLAUDE.md, plugin, hook, MCP tự dò, bộ nhớ, cài đặt người dùng. Chế độ này **không đọc Keychain**, chỉ đọc
-  `CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_API_KEY` từ biến môi trường. Công cụ có sẵn chỉ còn Bash, Read, Edit.
+- ~~`--bare` đọc `CLAUDE_CODE_OAUTH_TOKEN`~~ — **SAI, đo 2026-10-08 trên Mac mini:** `--bare` chỉ nhận `ANTHROPIC_API_KEY` /
+  `apiKeyHelper` ("OAuth and keychain are never read", help CLI 2.1.293) → "Not logged in". Thay bằng: **không `--bare`**,
+  `CLAUDE_CONFIG_DIR` = thư mục riêng, trống (không CLAUDE.md / plugin / hook / memory / đăng nhập của máy) +
+  `--setting-sources ""` + `--strict-mcp-config`. Đo: có token → chạy; bỏ token → "Not logged in" (không mượn đăng nhập máy).
 - `--mcp-config` nhận server `{"type":"http","url":...,"headers":{...}}`. `--strict-mcp-config` chỉ dùng server trong file đó.
 - `--max-turns`, `--output-format json` (`subtype`: `success` / `error_max_turns` / `error_during_execution`…),
   `--no-session-persistence`, `--permission-mode dontAsk`, `--allowedTools`, `--tools`, `--system-prompt`, `--model`, `--add-dir`.
@@ -39,7 +41,7 @@ JSONL. Phần nghiệp vụ của bản đó vẫn giữ: quy định gửi, 15 
 ## Kiến trúc
 
 ```
-Zalo ──getUpdates──▶ adapter Zalo ──▶ CSDL SQLite ──▶ hàng đợi việc ──▶ worker (1 việc/lúc) ──▶ claude -p --bare
+Zalo ──getUpdates──▶ adapter Zalo ──▶ CSDL SQLite ──▶ hàng đợi việc ──▶ worker (1 việc/lúc) ──▶ claude -p       
                       tải ảnh ngay     tin·viec·gui·moc                                             │ MCP HTTP + token việc
                                                          cổng công cụ (127.0.0.1) ◀─────────────────┘
                                                           kiem_tin · ghi_khoan · sua_khoan · doc_so · tra_loi
@@ -127,11 +129,12 @@ phien_ban(so INTEGER)
 ## Gọi Claude
 
 ```
-claude -p <gói ngữ cảnh> --bare --model <cfg> --system-prompt <dichvu/loi-dan.md>
+claude -p <gói ngữ cảnh> --setting-sources "" --model <cfg> --system-prompt <dichvu/loi-dan.md>
   --tools Read --add-dir <thư mục ảnh> --allowedTools "mcp__np__kiem_tin mcp__np__ghi_khoan mcp__np__sua_khoan mcp__np__doc_so mcp__np__tra_loi Read(<thư mục ảnh>/**)"
   --mcp-config '{"mcpServers":{"np":{"type":"http","url":"http://127.0.0.1:<cổng>/mcp","headers":{"Authorization":"Bearer <token việc>"}}}}'
   --strict-mcp-config --permission-mode dontAsk --max-turns <cfg> --output-format json --no-session-persistence
-cwd: ~/Bots/np-dichvu/chay (trống) · env: CLAUDE_CODE_OAUTH_TOKEN, PATH, HOME · quá <cfg> giây → giết cả nhóm tiến trình
+cwd: ~/Bots/np-dichvu/chay (trống) · env: CLAUDE_CONFIG_DIR=~/Bots/np-dichvu/claude-cfg, CLAUDE_CODE_OAUTH_TOKEN, PATH, HOME
+quá <cfg> giây → giết cả nhóm tiến trình
 ```
 
 - **Token việc:** ngẫu nhiên 32 byte, chỉ sống trong lúc việc chạy.
@@ -182,7 +185,7 @@ Mọi test chạy offline, kèm toàn bộ test hiện có của bot Discord:
 1. **MacBook:** `claude -p` (đăng nhập sẵn) đọc 1 ảnh bill và gọi 1 công cụ qua MCP HTTP. Không đạt thì DỪNG, bàn lại.
 2. **Mac mini, khi lên máy:**
    - `node -v` ≥ 22.13 (cho `node:sqlite`; thấp hơn thì nâng Node qua Homebrew);
-   - `claude setup-token` (chủ dự án tự chạy, tự lưu vào file bí mật) + `claude -p --bare` chạy được;
+   - `claude setup-token` (chủ dự án tự chạy, tự lưu vào file bí mật) + `claude -p` với thư mục cấu hình riêng chạy được bằng token (đã đo, đạt);
    - `photo_url` tải được, đơn vị `date`, định dạng ID nhóm;
    - tin gửi lúc dịch vụ tắt có còn không.
 

@@ -13,6 +13,7 @@ const ds = existsSync("kich-ban.json") ? JSON.parse(readFileSync("kich-ban.json"
 const kb = ds.shift() ?? { loai: "im_lang" };
 writeFileSync("kich-ban.json", JSON.stringify(ds));
 writeFileSync(`ngu-canh-${Date.now()}.txt`, nguCanh);
+writeFileSync("moi-truong.json", JSON.stringify({ CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null, co_token: !!process.env.CLAUDE_CODE_OAUTH_TOKEN }));
 if (kb.loai === "loi") { process.stderr.write("lỗi giả"); process.exit(1) }
 const tin = /message_id (\d+)/.exec(nguCanh)?.[1] ?? "", khoan = /TRẢ LỜI CHO .*?message_id (\d+)/.exec(nguCanh)?.[1] ?? "";
 const thay = (v) => JSON.parse(JSON.stringify(v).replaceAll("$TIN", tin).replaceAll("$KHOAN", khoan));

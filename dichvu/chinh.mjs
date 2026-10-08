@@ -33,7 +33,8 @@ export function docBiMat(file, batBuoc = ["ZALO_BOT_TOKEN", "CLAUDE_CODE_OAUTH_T
 
 export function thuMucDichVu(env = process.env) {
   const goc = env.NP_DICHVU_DIR || join(homedir(), "Bots", "np-dichvu");
-  return { goc, csdl: join(goc, "np.sqlite"), anh: join(goc, "anh"), saoLuu: join(goc, "sao-luu"), chay: join(goc, "chay"), logs: join(goc, "logs") };
+  return { goc, csdl: join(goc, "np.sqlite"), anh: join(goc, "anh"), saoLuu: join(goc, "sao-luu"), chay: join(goc, "chay"), logs: join(goc, "logs"),
+    cauHinhClaude: join(goc, "claude-cfg") };
 }
 export const fileBiMat = (env = process.env) => env.NP_BI_MAT || join(homedir(), "Bots", ".secrets", "np-dichvu.env");
 
@@ -113,7 +114,10 @@ export async function taoDichVu({ cfgTat, biMat, thuMuc, api, loiDan, chuongTrin
   let cong = null;
   const chay = ({ nguCanh, token }) => chayClaude({ chuongTrinh: chuongTrinhClaude,
     args: lenhClaude({ nguCanh, loiDan, model: cfg.dichvu.model, maxTurns: cfg.dichvu.maxTurns, cong, token, thuMucAnh: thuMuc.anh }),
-    env: { PATH: process.env.PATH, HOME: process.env.HOME, LANG: "en_US.UTF-8", CLAUDE_CODE_OAUTH_TOKEN: biMat.CLAUDE_CODE_OAUTH_TOKEN },
+    // Thư mục cấu hình Claude RIÊNG, trống: không CLAUDE.md / plugin / hook / memory / đăng nhập của máy (thay --bare, vốn
+    // không đọc token gói claude.ai). Đăng nhập chỉ bằng token setup-token.
+    env: { PATH: process.env.PATH, HOME: process.env.HOME, LANG: "en_US.UTF-8", CLAUDE_CONFIG_DIR: thuMuc.cauHinhClaude,
+      CLAUDE_CODE_OAUTH_TOKEN: biMat.CLAUDE_CODE_OAUTH_TOKEN },
     cwd: thuMuc.chay, thoiGianMs: cfg.dichvu.thoiGianToiDaGiay * 1000, signal: ac.signal });
   const hangDoi = taoHangDoi({ db, kho, core, congCu, hopThu, canhBao, nhom: cfg.channels, tenBot: cfg.tenBot,
     dsQuy: (cfg.quy || []).map((x) => x.ten), chay, nhatKy, now });

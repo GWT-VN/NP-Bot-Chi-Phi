@@ -1,7 +1,7 @@
 # NP Bot Chi Phí trên nhóm Zalo — thiết kế (2026-10-07)
 
 > **2026-10-08:** phần CHẠY (channel Claude Code, tmux, watchdog, kho JSONL, mục "Thiết kế" và "Phiên bot") được thay bởi
-> `2026-10-08-np-dichvu-design.md` (dịch vụ nền + `claude -p --bare` + SQLite). Phần nghiệp vụ dưới đây vẫn hiệu lực.
+> `2026-10-08-np-dichvu-design.md` (dịch vụ nền + `claude -p` + SQLite). Phần nghiệp vụ dưới đây vẫn hiệu lực.
 
 ## Vì sao
 

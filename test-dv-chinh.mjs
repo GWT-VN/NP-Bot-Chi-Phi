@@ -20,7 +20,7 @@ test("docBiMat: đọc KEY=VALUE, bỏ comment; thiếu khoá bắt buộc → l
 })
 
 test("thuMucDichVu: mặc định ~/Bots/np-dichvu, đổi được bằng NP_DICHVU_DIR", () => {
-  assert.deepEqual(thuMucDichVu({ NP_DICHVU_DIR: "/x/dv" }), { goc: "/x/dv", csdl: "/x/dv/np.sqlite", anh: "/x/dv/anh", saoLuu: "/x/dv/sao-luu", chay: "/x/dv/chay", logs: "/x/dv/logs" })
+  assert.deepEqual(thuMucDichVu({ NP_DICHVU_DIR: "/x/dv" }), { goc: "/x/dv", csdl: "/x/dv/np.sqlite", anh: "/x/dv/anh", saoLuu: "/x/dv/sao-luu", chay: "/x/dv/chay", logs: "/x/dv/logs", cauHinhClaude: "/x/dv/claude-cfg" })
   assert.match(thuMucDichVu({}).goc, /Bots\/np-dichvu$/)
 })
 
