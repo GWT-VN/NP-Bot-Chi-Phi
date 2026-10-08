@@ -69,6 +69,8 @@ test("tomTat (--kiem-tra): việc/gửi theo trạng thái, việc quá hạn, c
   assert.deepEqual(r.viec, { cho: 1 }); assert.equal(r.viec_qua_han_phut, 20); assert.equal(r.nhan_zalo_cach_phut, 2); assert.equal(r.claude_ok_cach_phut, null)
   assert.deepEqual(r.nhom_chua_khai, [{ chat_id: "g9", lan_cuoi_phut: 1, nguoi: "Thuỷ", vi_du: "@Bot thử" }])
   assert.deepEqual(r.canh_bao_gan_day, [{ khoa: "zalo_mat", cach_phut: 5 }])
+  // Nhóm đã khai (config) không hiện lại trong nhom_chua_khai — mốc cũ từ trước khi khai làm chủ dự án tưởng nhóm chưa nối (2026-10-08).
+  assert.deepEqual(tomTat(db, T, ["g9"]).nhom_chua_khai, [])
 })
 
 test("node dichvu/chinh.mjs --kiem-tra in tình trạng dạng JSON (không cần bí mật)", () => {

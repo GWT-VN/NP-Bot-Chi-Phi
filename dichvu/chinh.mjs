@@ -84,7 +84,7 @@ export function taoBaoTri({ db, thuMuc, now = Date.now, giuSaoLuu = 14, giuNgay 
 }
 
 /** Tình trạng dịch vụ cho `--kiem-tra`. */
-export function tomTat(db, now = Date.now()) {
+export function tomTat(db, now = Date.now(), daKhai = []) {
   const dem = (bang) => Object.fromEntries(db.prepare(`SELECT trang_thai AS k, COUNT(*) AS n FROM ${bang} GROUP BY trang_thai`).all().map((r) => [r.k, r.n]));
   const phut = (luc) => (luc == null ? null : Math.round((now - luc) / 60e3));
   const cu = db.prepare("SELECT MIN(sau_luc) AS t FROM viec WHERE trang_thai='cho'").get()?.t ?? null;
@@ -93,7 +93,7 @@ export function tomTat(db, now = Date.now()) {
     viec: dem("viec"), gui: dem("gui"),
     viec_qua_han_phut: cu != null && cu < now ? phut(cu) : 0,
     nhan_zalo_cach_phut: phut(layMoc(db, "nhan_zalo_ok")), claude_ok_cach_phut: phut(layMoc(db, "claude_ok")),
-    nhom_chua_khai: moc("nhom_la:").map((r) => ({ chat_id: r.khoa.slice("nhom_la:".length), lan_cuoi_phut: phut(r.luc), ...JSON.parse(r.ghi_chu || "{}") })),
+    nhom_chua_khai: moc("nhom_la:").filter((r) => !daKhai.includes(r.khoa.slice("nhom_la:".length))).map((r) => ({ chat_id: r.khoa.slice("nhom_la:".length), lan_cuoi_phut: phut(r.luc), ...JSON.parse(r.ghi_chu || "{}") })),
     canh_bao_gan_day: moc("canh_bao:").slice(0, 10).map((r) => ({ khoa: r.khoa.slice("canh_bao:".length), cach_phut: phut(r.luc) })),
   };
 }
@@ -183,7 +183,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const thuMuc = thuMucDichVu();
   if (process.argv.includes("--kiem-tra")) {
     const db = moCsdl(thuMuc.csdl);
-    console.log(JSON.stringify(tomTat(db), null, 2));
+    const z = JSON.parse(readFileSync(join(GOC, "config.json"), "utf8")).zalo || {};
+    console.log(JSON.stringify(tomTat(db, Date.now(), [...Object.keys(z.groups || {}), z.nhomVanHanh].filter(Boolean)), null, 2));
     db.close();
     process.exit(0);
   }
