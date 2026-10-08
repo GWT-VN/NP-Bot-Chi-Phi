@@ -6,7 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { docBiMat, thuMucDichVu, cauHinhDichVu, MAC_DINH_DICH_VU, taoNhatKy, taoBaoTri, tomTat } from "./dichvu/chinh.mjs";
+import { docBiMat, thuMucDichVu, cauHinhDichVu, MAC_DINH_DICH_VU, taoNhatKy, taoBaoTri, tomTat, tinMau } from "./dichvu/chinh.mjs";
+import http from "node:http";
+import { spawn } from "node:child_process";
 import { moCsdl, taoKhoTin, datMoc } from "./dichvu/csdl.mjs";
 
 const tam = () => mkdtempSync(join(tmpdir(), "dv-"));
@@ -73,4 +75,33 @@ test("node dichvu/chinh.mjs --kiem-tra in tình trạng dạng JSON (không cầ
   const r = spawnSync(process.execPath, ["dichvu/chinh.mjs", "--kiem-tra"], { cwd: fileURLToPath(new URL(".", import.meta.url)), env: { ...process.env, NP_DICHVU_DIR: tam() }, encoding: "utf8" })
   assert.equal(r.status, 0, r.stderr)
   assert.deepEqual(Object.keys(JSON.parse(r.stdout)), ["viec", "gui", "viec_qua_han_phut", "nhan_zalo_cach_phut", "claude_ok_cach_phut", "nhom_chua_khai", "canh_bao_gan_day"])
+})
+
+// Chủ dự án 2026-10-08: muốn ô nhập hiện sẵn cú pháp mờ — Zalo Bot API không có (sendMessage chỉ chat_id/text/parse_mode/
+// text_styles). Thay bằng tin mẫu do bot gửi, phần cú pháp in nghiêng + chữ nhỏ, trưởng nhóm ghim.
+test("tinMau: khuôn Thu/Chi - Số tiền - Nội dung - Tên quỹ + ví dụ in nghiêng chữ nhỏ đúng vị trí (UTF-16, có emoji); quỹ bỏ 'GWT - '", () => {
+  const m = tinMau({ zalo: { tenBot: "Bot GWT CP" }, quy: [{ ten: "GWT - TK Công ty" }, { ten: "GWT - Tiền mặt" }, { ten: "Thuỷ" }] })
+  assert.equal(m.text, "📌 Báo chi phí: 1 ảnh bill, chú thích bắt đầu bằng tag @Bot GWT CP\nThu/Chi - Số tiền - Nội dung - Tên quỹ\nVD: Chi - 50k - Nước khách - Tiền mặt\nQuỹ: TK Công ty · Tiền mặt · Thuỷ")
+  assert.deepEqual(m.text_styles.map((s) => [m.text.slice(s.start, s.start + s.len), s.st]),
+    [["Thu/Chi - Số tiền - Nội dung - Tên quỹ", ["i", "f_13"]], ["VD: Chi - 50k - Nước khách - Tiền mặt", ["i", "f_13"]]])
+})
+
+const nhomDaKhai = Object.keys(JSON.parse(readFileSync(new URL("./config.json", import.meta.url), "utf8")).zalo?.groups || {})[0];
+const chayChinh = (args, env) => new Promise((ok) => { // spawn (không spawnSync): Zalo giả chạy trong CHÍNH tiến trình test
+  const p = spawn(process.execPath, ["dichvu/chinh.mjs", ...args], { cwd: fileURLToPath(new URL(".", import.meta.url)), env: { ...process.env, ...env } })
+  let out = "", err = ""; p.stdout.on("data", (c) => { out += c }); p.stderr.on("data", (c) => { err += c }); p.on("close", (ma) => ok({ ma, out, err }))
+})
+test("--gui-mau <chat_id>: nhóm chưa khai → từ chối, không đọc bí mật; nhóm đã khai → bot gửi sendMessage kèm text_styles", { skip: !nhomDaKhai && "config.json chưa khai nhóm Zalo nào" }, async () => {
+  const lo = await chayChinh(["--gui-mau", "nhom-la"], { NP_BI_MAT: "/khong/co/file" })
+  assert.equal(lo.ma, 1); assert.match(lo.err, /chưa khai/)
+  const nhan = []
+  const may = http.createServer(async (req, res) => { let b = ""; for await (const c of req) b += c; nhan.push({ url: req.url, body: JSON.parse(b) }); res.end(JSON.stringify({ ok: true, result: { message_id: "m1", date: Date.now() } })) })
+  await new Promise((r) => may.listen(0, "127.0.0.1", r))
+  try {
+    const f = join(tam(), "np.env"); writeFileSync(f, "ZALO_BOT_TOKEN=123:abc\n")
+    const r = await chayChinh(["--gui-mau", nhomDaKhai], { NP_BI_MAT: f, ZALO_API_GOC: `http://127.0.0.1:${may.address().port}` })
+    assert.equal(r.ma, 0, r.err)
+    assert.equal(nhan.length, 1); assert.equal(nhan[0].url, "/bot123:abc/sendMessage")
+    assert.equal(nhan[0].body.chat_id, nhomDaKhai); assert.match(nhan[0].body.text, /Thu\/Chi - Số tiền - Nội dung - Tên quỹ/); assert.equal(nhan[0].body.text_styles.length, 2)
+  } finally { may.close() }
 })

@@ -3,6 +3,7 @@
 // định; bản thứ hai không giữ được cổng thì thoát. Các vòng: nhận Zalo (long-poll) · worker (một việc/lúc) · hộp thư · bảo trì.
 //   node dichvu/chinh.mjs              chạy dịch vụ (cần ~/Bots/.secrets/np-dichvu.env)
 //   node dichvu/chinh.mjs --kiem-tra   in tình trạng (việc, gửi, lần nhận Zalo, nhóm chưa khai, cảnh báo) — không cần bí mật
+//   node dichvu/chinh.mjs --gui-mau <chat_id>   bot gửi tin mẫu cú pháp vào nhóm đã khai, để trưởng nhóm GHIM
 import { readFileSync, appendFileSync, mkdirSync, readdirSync, statSync, rmSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
@@ -97,6 +98,15 @@ export function tomTat(db, now = Date.now()) {
   };
 }
 
+/** Tin mẫu cú pháp để trưởng nhóm GHIM (chủ dự án 2026-10-08). Zalo không cho đặt chữ mẫu mờ trong ô nhập (sendMessage chỉ có
+ *  chat_id / text / parse_mode / text_styles), nên bot gửi tin mẫu: phần cú pháp in nghiêng + chữ nhỏ (Zalo không có màu xám). */
+export function tinMau(cfg) {
+  const mau = ["Thu/Chi - Số tiền - Nội dung - Tên quỹ", "VD: Chi - 50k - Nước khách - Tiền mặt"];
+  const quy = (cfg.quy || []).map((q) => q.ten.replace(/^GWT - /, "")).join(" · ");
+  const text = [`📌 Báo chi phí: 1 ảnh bill, chú thích bắt đầu bằng tag @${cfg.zalo?.tenBot || "Bot"}`, ...mau, ...(quy ? [`Quỹ: ${quy}`] : [])].join("\n");
+  return { text, text_styles: mau.map((d) => ({ start: text.indexOf(d), len: d.length, st: ["i", "f_13"] })) }; // chỉ số JS = UTF-16 như Zalo
+}
+
 export async function taoDichVu({ cfgTat, biMat, thuMuc, api, loiDan, chuongTrinhClaude = "claude", taiFn = fetch, now = Date.now,
   taoCore = (cfg, nguonTin) => taoCoreThat({ cfg, nguonTin }) }) {
   const cfg = cauHinhDichVu(cfgTat);
@@ -175,6 +185,14 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     const db = moCsdl(thuMuc.csdl);
     console.log(JSON.stringify(tomTat(db), null, 2));
     db.close();
+    process.exit(0);
+  }
+  if (process.argv.includes("--gui-mau")) {
+    const chat = process.argv[process.argv.indexOf("--gui-mau") + 1], cfgTat = JSON.parse(readFileSync(join(GOC, "config.json"), "utf8"));
+    if (!Object.prototype.hasOwnProperty.call(cfgTat.zalo?.groups || {}, chat)) { console.error(`nhóm "${chat}" chưa khai trong config.json zalo.groups`); process.exit(1) }
+    const api = taoApi({ token: docBiMat(fileBiMat(), ["ZALO_BOT_TOKEN"]).ZALO_BOT_TOKEN, ...(process.env.ZALO_API_GOC ? { goc: process.env.ZALO_API_GOC } : {}) });
+    await api.goi("sendMessage", { chat_id: chat, ...tinMau(cfgTat) });
+    console.log("đã gửi tin mẫu — trong Zalo giữ tin đó, chọn Ghim");
     process.exit(0);
   }
   const biMat = docBiMat(fileBiMat());

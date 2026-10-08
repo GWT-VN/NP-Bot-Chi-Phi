@@ -4,8 +4,9 @@ Bot ghi vào file "Sổ chi phí New Projects". **Bot chỉ thấy tin có gắn
 
 **Mỗi khoản = 1 ảnh bill, gõ nội dung vào phần CHÚ THÍCH của ảnh, mở đầu bằng @Bot GWT CP:**
 
-    [ảnh bill]  @Bot GWT CP chi 180k 10 chai nước khách bóng bàn 7/10, cá nhân ứng
-    [ảnh]       @Bot GWT CP thu hoàn cọc 2tr vào TK công ty
+    Khuôn:      @Bot GWT CP Thu/Chi - Số tiền - Nội dung - Tên quỹ
+    [ảnh bill]  @Bot GWT CP Chi - 180k - 10 chai nước khách bóng bàn 7/10 - Cá nhân ứng
+    [ảnh]       @Bot GWT CP Thu - 2tr - Hoàn cọc - TK Công ty
 
 Nên có: **thu/chi** · **số tiền** · **hoá đơn đỏ** (không ghi = không có) · **quỹ** (GWT - TK Công ty / GWT - Tiền mặt /
 Thuỷ / Cá nhân ứng). Thiếu gì bot hỏi lại.
