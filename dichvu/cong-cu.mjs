@@ -17,7 +17,7 @@ const boc = (fn, khiLoi = () => {}) => async (a) => {
   }
 };
 
-export function taoCongCu({ core, kho, hopThu, canhBao = { bao: () => {} }, nhatKy = () => {} }) {
+export function taoCongCu({ core, kho, hopThu, canhBao = { bao: () => {} }, chungTu = { them: () => false, capNhat: () => {} }, nhatKy = () => {} }) {
   const phien = new Map(); // token → { viec_id, chat_id, tin_id }
 
   function dangKy(s, { viec_id, chat_id, tin_id }) {
@@ -39,20 +39,27 @@ export function taoCongCu({ core, kho, hopThu, canhBao = { bao: () => {} }, nhat
       const kq = await core.ghiKhoan({ chat_id, ...a });
       if (!kq?.ok) return kq;
       const m = kho.lay(a.message_id), anhLoi = (kq.canh_bao || []).some((x) => /ảnh/.test(x));
-      bao(String(kq.da_ghi || "").startsWith("khoản này đã có") ? `✅ #${m?.ma} đã có trong sổ`
-        : `✅ #${m?.ma} ${m?.ten || ""} · ${kq.da_ghi}${anhLoi ? " (chưa lưu được ảnh chứng từ — người quản lý kiểm tra)" : ""}`
-          // Zalo không chuyển album cho bot → ảnh khác (vé, hoá đơn…) người gửi tự thêm vào thư mục này (chủ dự án 2026-10-08).
-          + (kq.link_anh ? `\n📎 Thêm chứng từ: ${kq.link_anh}` : ""));
+      const daCo = String(kq.da_ghi || "").startsWith("khoản này đã có");
+      // Zalo không chuyển album cho bot → mỗi khoản một thư mục; chứng từ thiếu / thêm người gửi tự tải vào (2026-10-08).
+      const dongAnh = !kq.link_anh ? "" : kq.co_anh ? `\n📎 Thêm chứng từ: ${kq.link_anh}` : `\n📎 Chưa có chứng từ, tải vào: ${kq.link_anh}`;
+      bao(daCo ? `✅ #${m?.ma} đã có trong sổ`
+        : `✅ #${m?.ma} ${m?.ten || ""}${kq.ngay ? ` · ${String(kq.ngay).slice(0, 5)}` : ""} · ${kq.da_ghi}`
+          + `${anhLoi ? " (chưa lưu được ảnh chứng từ — người quản lý kiểm tra)" : ""}${dongAnh}`);
+      if (!daCo && m && kq.link_anh) chungTu.them({ tin: m, loai: a.loai, so_tien: a.so_tien, ngay: kq.ngay, link: kq.link_anh, co_anh: !!kq.co_anh });
       if (anhLoi) canhBao.bao(`anh_loi:${a.message_id}`, `Khoản #${m?.ma} (nhóm ${chat_id}) đã ghi sổ nhưng chưa lưu được ảnh chứng từ lên Drive — kiểm tra.`);
       return { ...kq, da_bao_nhom: "dịch vụ đã tự báo ✅ trong nhóm — KHÔNG trả lời thêm" };
     }, loiSo));
-    s.registerTool("sua_khoan", { description: "Sửa khoản ĐÃ ghi theo yêu cầu của CHÍNH người gửi khoản (yeu_cau_message_id = tin yêu cầu). Sửa số tiền thì kèm loai.",
+    s.registerTool("sua_khoan", { description: "Sửa khoản ĐÃ ghi theo yêu cầu của CHÍNH người gửi khoản (yeu_cau_message_id = tin yêu cầu). Sửa số tiền thì kèm loai. Đổi ngày thu/chi → ngay (dd/mm/yyyy).",
       inputSchema: { message_id: ID_TIN, yeu_cau_message_id: ID_TIN, noi_dung: z.string().min(1).max(300).optional(), loai: z.enum(["thu", "chi"]).optional(),
-        so_tien: z.number().int().positive().optional(), hoa_don: z.enum(["Có", "Không", "Chờ xuất"]).optional(), nguon_quy: z.string().max(60).optional() } },
+        so_tien: z.number().int().positive().optional(), hoa_don: z.enum(["Có", "Không", "Chờ xuất"]).optional(), nguon_quy: z.string().max(60).optional(),
+        ngay: z.string().regex(/^\d{1,2}\/\d{1,2}\/\d{4}$/).optional() } },
     boc(async (a) => {
       if (a.yeu_cau_message_id !== tin_id) return ngoaiPhamVi("yeu_cau_message_id phải là tin đang xử lý");
       const kq = await core.suaKhoan({ chat_id, ...a });
-      if (kq?.ok) { const m = kho.lay(a.message_id); bao(`✏️ Đã sửa #${m?.ma} theo yêu cầu của ${m?.ten || "người gửi"}`) }
+      if (kq?.ok) {
+        chungTu.capNhat(a.message_id, { loai: a.loai ?? null, so_tien: a.so_tien ?? null, ngay: a.ngay ?? null });
+        const m = kho.lay(a.message_id); bao(`✏️ Đã sửa #${m?.ma} theo yêu cầu của ${m?.ten || "người gửi"}`);
+      }
       return kq;
     }, loiSo));
     s.registerTool("doc_so", { description: "Đọc sổ của nhóm này (chỉ đọc): các dòng + tổng thu/chi, lọc theo ngày dd/mm/yyyy và loai.",

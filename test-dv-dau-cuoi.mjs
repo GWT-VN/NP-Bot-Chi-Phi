@@ -40,7 +40,7 @@ test("tin ảnh đủ thông tin → claude ghi sổ → dịch vụ tự báo �
     t.kichBan([{ loai: "goi", goi: [{ ten: "ghi_khoan", doi: { message_id: "$TIN", loai: "chi", so_tien: 180000, noi_dung: "10 chai nước khách", hoa_don: "Không", nguon_quy: "Cá nhân ứng" } }] }])
     t.zalo.vao.push(anh("@Bot GWT CP chi 180k 10 chai nước khách, cá nhân ứng"))
     await cho(() => t.zalo.gui.some((g) => g.text.startsWith("✅ #1")))
-    assert.match(t.zalo.gui.find((g) => g.text.startsWith("✅")).text, /^✅ #1 Quỳnh Mai · CHI 180\.000đ · Cá nhân ứng/)
+    assert.match(t.zalo.gui.find((g) => g.text.startsWith("✅")).text, /^✅ #1 Quỳnh Mai · \d{2}\/\d{2} · CHI 180\.000đ · Cá nhân ứng/)
     assert.equal(t.so.length, 1); assert.equal(t.so[0].rows[0][7], 180000)
     assert.equal(readdirSync(t.thuMuc.anh).length, 1)
     // ✅ có thể đi trước khi claude giả thoát hẳn → chờ việc 'xong', không kiểm ngay.
