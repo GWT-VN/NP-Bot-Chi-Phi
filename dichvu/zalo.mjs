@@ -26,6 +26,7 @@ export function taoAdapterZalo({ db, kho, nhom, nhomVanHanh = null, thuMucAnh, t
     const z = u?.message, ch = String(z?.chat?.id ?? "");
     if (!z || !/^message\.(text|image)\.received$/.test(String(u?.event_name))) return nhatKy({ bo: u?.event_name || "khong_ro" });
     if (z.chat?.chat_type !== "GROUP") return nhatKy({ bo: "tin_rieng" });
+    if (z.from?.is_bot) return nhatKy({ bo: "tin_bot" }); // tin của chính bot quay lại → vòng lặp bot trả lời bot
     if (nhomVanHanh && ch === String(nhomVanHanh)) return nhatKy({ bo: "nhom_van_hanh" });
     if (!hopLe(ch)) {
       datMoc(db, `nhom_la:${ch}`, now(), JSON.stringify({ nguoi: z.from?.display_name || "", vi_du: String(z.text ?? z.caption ?? "").slice(0, 40) }));

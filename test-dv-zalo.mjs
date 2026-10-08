@@ -59,3 +59,11 @@ test("xuLyLo: một cập nhật lỗi không làm mất các cập nhật còn 
   await xuLyLo([1, 2, 3], async (u) => { if (u === 2) throw new Error("hỏng ghi"); da.push(u) }, (d) => nk.push(d))
   assert.deepEqual(da, [1, 3]); assert.match(nk[0].loi, /hỏng ghi/)
 })
+
+// Review cuối (M1, nâng Important theo tác động): Zalo mà trả lại tin của chính bot (câu hỏi có chữ "@Bot GWT CP") thì mỗi tin
+// bot thành một việc → bot trả lời bot, vòng lặp spam trong nhóm. Bỏ tin from.is_bot.
+test("[M1] tin do bot gửi (from.is_bot) → bỏ + nhật ký, không thành việc", async () => {
+  const t = dung()
+  await t.z.nhan(cap({ event_name: "message.text.received" }, { from: { id: "bot1", display_name: "Bot GWT CP", is_bot: true }, text: "Khoản #1 quỹ nào? (trả lời bắt đầu bằng @Bot GWT CP)" }))
+  assert.equal(t.soViec(), 0); assert.deepEqual(t.nk.map((d) => d.bo), ["tin_bot"])
+})
