@@ -103,10 +103,10 @@ export function tomTat(db, now = Date.now(), daKhai = []) {
 /** Tin mẫu cú pháp để trưởng nhóm GHIM (chủ dự án 2026-10-08). Zalo không cho đặt chữ mẫu mờ trong ô nhập (sendMessage chỉ có
  *  chat_id / text / parse_mode / text_styles), nên bot gửi tin mẫu: phần cú pháp in nghiêng + chữ nhỏ (Zalo không có màu xám). */
 export function tinMau(cfg) {
-  const mau = ["Thu/Chi - Số tiền - Nội dung - Tên quỹ", "VD: Chi - 50k - Nước khách - Tiền mặt"];
+  const mau = ["Thu/Chi - Số tiền - Nội dung - Tên quỹ - Ngày", "VD: Chi - 50k - Nước khách - Tiền mặt - 7/10"];
   const quy = (cfg.quy || []).map((q) => q.ten.replace(/^GWT - /, "")).join(" · ");
-  const text = [`📌 Báo chi phí: 1 ảnh bill, chú thích bắt đầu bằng tag @${cfg.zalo?.tenBot || "Bot"}`, ...mau, ...(quy ? [`Quỹ: ${quy}`] : []),
-    "Nhiều ảnh: gửi 1 ảnh, ảnh còn lại thêm vào link bot gửi kèm ✅ (Zalo không chuyển album cho bot)"].join("\n");
+  const text = [`📌 Báo chi phí: tag @${cfg.zalo?.tenBot || "Bot"}, kèm 1 ảnh bill nếu có`, ...mau, ...(quy ? [`Quỹ: ${quy}`] : []),
+    "Ngày bỏ trống = hôm nay. Chưa có ảnh vẫn gửi được: ✅ kèm link để tải chứng từ, 20:00 bot nhắc khoản còn thiếu."].join("\n");
   return { text, text_styles: mau.map((d) => ({ start: text.indexOf(d), len: d.length, st: ["i", "f_13"] })) }; // chỉ số JS = UTF-16 như Zalo
 }
 

@@ -70,6 +70,10 @@ test("np-dichvu: lời dặn đủ công cụ + luật an toàn; launchd KeepAli
   for (const x of ["KHÔNG im lặng", "Mình chỉ ghi sổ chi phí"]) assert.ok(l.includes(x), x);
   // Zalo không chuyển album cho bot (đo 07/10 + 08/10) → 1 ảnh/khoản, ảnh khác thêm qua link thư mục trong tin ✅.
   for (const x of ["Zalo không chuyển album", "link trong tin ✅"]) assert.ok(l.includes(x), x);
+  // Spec 2026-10-08-np-chung-tu: ảnh không còn là điều kiện ghi; khuôn có ngày; không còn "không có bill thì báo".
+  for (const x of ["KHÔNG phải điều kiện để ghi", "Thu/Chi - Số tiền - Nội dung - Tên quỹ - Ngày", "sửa #N ngày"]) assert.ok(l.includes(x), x);
+  assert.doesNotMatch(l, /không có bill thì báo/);
+  for (const x of ["Thu/Chi - Số tiền - Nội dung - Tên quỹ - Ngày", "20:00", "sửa #5 ngày"]) assert.ok(doc("./HUONG-DAN-ZALO.md").includes(x), x);
   assert.ok(doc("./HUONG-DAN-ZALO.md").includes("link"), "hướng dẫn ghim nói cách thêm ảnh qua link");
   const s = doc("./mac/cai-dichvu.sh");
   assert.match(s, /com\.gwt\.np\.dichvu/); assert.match(s, /<key>KeepAlive<\/key><true\/>/); assert.match(s, /dichvu\/chinh\.mjs/); assert.match(s, /np-dichvu\.env/);
