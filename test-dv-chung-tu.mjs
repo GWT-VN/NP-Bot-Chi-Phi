@@ -94,3 +94,15 @@ test("nhắc tối: không còn khoản thiếu → không gửi gì", () => {
   const t = dung({ gio: "2026-10-10T20:30:00+07:00" }); t.khoan("@Bot GWT CP chi 50k", {}, { co_anh: true })
   assert.equal(t.ct.nhacToi(), 0); assert.deepEqual(t.gui(), [])
 })
+
+// Rà soát cuối (I4): Sheets lỗi tạm lúc sửa ghi chú → lượt quét sau làm lại (không để "không có ảnh chứng từ" sai mãi);
+// khoản có ảnh từ lúc ghi → không bao giờ đụng ghi chú sổ.
+test("[rà soát] sửa ghi chú sổ lỗi tạm → lượt quét sau làm lại tới khi được; khoản có ảnh lúc ghi → không sửa sổ", async () => {
+  let lan = 0
+  const t = dung({ coFile: async () => true, boSung: async () => { if (++lan === 1) throw new Error("Sheets 429"); return { ok: true } } })
+  const a = t.khoan("@Bot GWT CP chi 50k a"); t.khoan("@Bot GWT CP chi 60k b", {}, { co_anh: true })
+  await t.ct.quet(); assert.equal(lan, 1); assert.equal(t.ct.soThieu(), 0)
+  await t.ct.quet(); assert.equal(lan, 2)
+  await t.ct.quet(); assert.equal(lan, 2)
+  assert.ok(t.db.prepare("SELECT bo_sung_luc FROM chung_tu WHERE tin_id=?").get(a.id).bo_sung_luc)
+})

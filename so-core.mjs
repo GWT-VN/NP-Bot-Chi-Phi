@@ -15,7 +15,14 @@ const ND = (m) => m.author?.global_name || m.author?.username || "";
 const toDMY = (iso) => { const [y, mo, d] = String(iso).split("-"); return `${d}/${mo}/${y}` };
 const dmyIso = (s) => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(s || "").trim()); return m ? `${m[3]}-${m[2]}-${m[1]}` : null };
 // "7/10/2026" → "07/10/2026" (Claude / người gửi viết thiếu số 0); sai dạng → null.
-const chuanNgay = (s) => { const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(s ?? "").trim()); return m ? `${m[1].padStart(2, "0")}/${m[2].padStart(2, "0")}/${m[3]}` : null };
+const chuanNgay = (s) => {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(s ?? "").trim());
+  if (!m) return null;
+  const [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3])], t = new Date(Date.UTC(y, mo - 1, d));
+  // Ngày phải CÓ THẬT (rà soát cuối 2026-10-08): "10/13/2026" (kiểu Mỹ) / "31/02" → null — không để chữ rác vào sổ / cây Drive.
+  if (t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return null;
+  return `${String(d).padStart(2, "0")}/${String(mo).padStart(2, "0")}/${y}`;
+};
 
 export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
   const quyTen = new Set((cfg.quy || []).map((q) => q.ten));
@@ -84,6 +91,7 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     if ((await so.loadProcessed()).has(String(m.id))) return tuChoi("tin này đã ghi sổ rồi — muốn sửa thì dùng sua_khoan");
     const sai = kiemGiaTri(a);
     if (sai) return tuChoi(sai);
+    if (a.ngay !== undefined && !chuanNgay(a.ngay)) return tuChoi("ngay phải là ngày có thật dạng dd/mm/yyyy (vd 06/10/2026)");
     const luat = kiemLuat(m, cfg);
     // Tham chiếu cho Claude tự soát lại (KHÔNG chặn): chỗ giá trị Claude chốt khác chữ tin theo bộ đọc luật.
     const thamChieu = bangChung(m, a, luat.co_anh);

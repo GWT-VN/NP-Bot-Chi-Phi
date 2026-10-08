@@ -8,7 +8,7 @@ export const SO_LAN_TOI_DA = LICH_THU_LAI.length + 1; // lần đầu + 3 lần 
 // giới hạn gói claude.ai kéo dài hàng giờ, tính lần thì mọi tin đang chờ thành that_bai (review cuối I2).
 const CHO_GOI = 30 * 60e3;
 
-const gio = (luc) => new Date(luc).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+const gio = (luc) => new Date(luc).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 const anhCua = (t, tenBot) => t.anh_tt === "da_tai" ? `ảnh: ${t.anh_tep}` : t.anh_tt === "khong_co" ? "ảnh: không có"
   : String(t.anh_tt).startsWith("loi:") ? `ảnh: tải hỏng (${t.anh_tt.slice(4)}) — nhờ người gửi gửi lại 1 ảnh, chú thích bắt đầu bằng @${tenBot} #${t.ma}` : "ảnh: đang tải";
 

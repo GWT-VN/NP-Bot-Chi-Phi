@@ -39,6 +39,9 @@ test("đúng 5 công cụ, KHÔNG tham số chat_id, không lệnh xoá", async 
     const ds = (await (await t.noi(t.phien(t.tin(A, "@Bot GWT CP x")))).listTools()).tools
     assert.deepEqual(ds.map((x) => x.name).sort(), ["doc_so", "ghi_khoan", "kiem_tin", "sua_khoan", "tra_loi"])
     assert.ok(ds.every((x) => !("chat_id" in (x.inputSchema.properties || {}))))
+    // Rà soát cuối (I3): mô tả ghi_khoan không còn bắt ảnh (spec chứng từ); ngay có mô tả để Claude điền đúng.
+    const g = ds.find((x) => x.name === "ghi_khoan")
+    assert.doesNotMatch(g.description, /5 ý/); assert.match(g.description, /KHÔNG cần ảnh/); assert.ok(g.inputSchema.properties.ngay.description, "ngay có mô tả")
   } finally { await t.dong() }
 })
 

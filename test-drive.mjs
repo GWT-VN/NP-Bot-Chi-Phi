@@ -50,3 +50,9 @@ test("thuMucCoFile: thư mục trống → false; có file → true", async () =
   assert.equal(await thuMucCoFile(driveGia(), "F1"), false)
   assert.equal(await thuMucCoFile(driveGia({ coFile: true }), "F1"), true)
 })
+
+// Rà soát cuối (nâng Important): lệnh Drive phải có giờ chờ — treo thì vòng bảo trì (sao lưu, cảnh báo, nhắc) đứng im.
+test("[rà soát] thuMucCoFile đặt giờ chờ 20s cho lệnh Drive", async () => {
+  let opt; await thuMucCoFile({ files: { list: async (_p, o) => { opt = o; return { data: { files: [] } } } } }, "F1")
+  assert.equal(opt?.timeout, 20000)
+})

@@ -209,7 +209,7 @@ export async function thuMucCoFile(drive, folderId) {
   const res = await drive.files.list({
     q: `'${q(folderId)}' in parents and trashed = false`, fields: "files(id)", pageSize: 1,
     supportsAllDrives: true, includeItemsFromAllDrives: true,
-  });
+  }, { timeout: 20_000 }); // treo không được chặn vòng bảo trì (sao lưu, cảnh báo, nhắc) — rà soát cuối 2026-10-08
   return (res.data.files?.length ?? 0) > 0;
 }
 

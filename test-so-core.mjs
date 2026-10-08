@@ -381,3 +381,14 @@ test("[chứng từ] boSungChungTu: bỏ 'không có ảnh chứng từ', ghi ng
   assert.equal((await t.so.boSungChungTu({ chat_id: KENH, message_id: "999", ngay: "08/10" })).ok, false)
   assert.equal((await t.so.boSungChungTu({ chat_id: "lạ", message_id: "100", ngay: "08/10" })).ok, false)
 })
+
+// Rà soát cuối (I1): ngày đúng dạng nhưng KHÔNG có thật (tháng 13, 31/02) → từ chối, không vào sổ / cây Drive.
+test("[rà soát] ngày không có thật (10/13/2026, 31/02/2026) → ghi / sửa đều từ chối, sổ không đổi", async () => {
+  for (const ngay of ["10/13/2026", "31/02/2026"]) {
+    const t = dung([goc, tl("110", "sửa ngày", "100")], { dongTheoMa: { "100": 7 } })
+    const s = await t.so.suaKhoan({ chat_id: KENH, message_id: "100", yeu_cau_message_id: "110", ngay })
+    assert.equal(s.ok, false, ngay); assert.equal(t.sua.length, 0)
+    const t2 = dung([goc]), g = await t2.so.ghiKhoan({ ...DUNG, ngay })
+    assert.equal(g.ok, false, ngay); assert.equal(t2.ghi.length, 0)
+  }
+})

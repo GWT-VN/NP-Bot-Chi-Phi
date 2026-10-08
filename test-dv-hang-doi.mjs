@@ -87,4 +87,6 @@ test("gói ngữ cảnh: tin mới, trả lời cho khoản (kèm câu bot hỏi
   assert.match(nc, /KHOẢN KHÁC ĐANG HỎI Quỳnh Mai: #4 \(message_id 1791300000002000\)/)
   assert.match(nc, /ĐÃ GỬI Ở LẦN CHẠY TRƯỚC: \(không có\)/); assert.match(nc, /BỘ ĐỌC LUẬT \(chỉ tham chiếu\): \{"thieu":\["quy"\]\}/)
   assert.match(nc, /QUỸ: GWT - Tiền mặt · Thuỷ/)
+  // Rà soát cuối (I2): giờ tin có NĂM — Claude điền năm cho ngày "7/10" theo đây, không đoán.
+  assert.match(nc, /TIN MỚI #5 [^\n]*\/2026/)
 })

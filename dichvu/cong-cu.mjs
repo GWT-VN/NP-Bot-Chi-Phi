@@ -30,10 +30,11 @@ export function taoCongCu({ core, kho, hopThu, canhBao = { bao: () => {} }, chun
     const loiSo = (e) => canhBao.bao(`so_loi:${chat_id}`, `Ghi sổ lỗi ở nhóm ${chat_id}: ${String(e?.message ?? e).slice(0, 150)}`);
     s.registerTool("kiem_tin", { description: "Đọc lại 1 tin trong nhóm và chạy bộ đọc luật (chỉ tham chiếu): đã ghi sổ chưa, danh sách quỹ, gợi ý thiếu gì.",
       inputSchema: { message_id: ID_TIN } }, boc((a) => core.kiemTin({ chat_id, ...a })));
-    s.registerTool("ghi_khoan", { description: "Ghi 1 khoản vào sổ theo giá trị BẠN chốt (đủ 5 ý: thu/chi, số tiền, ảnh, hoá đơn, quỹ). Đã hỏi và người gửi trả lời → xac_nhan_message_id = tin trả lời đó. Thành công thì dịch vụ tự báo ✅ trong nhóm.",
+    s.registerTool("ghi_khoan", { description: "Ghi 1 khoản vào sổ theo giá trị BẠN chốt (rõ thu/chi, số tiền, nội dung, quỹ; hoá đơn không nhắc = Không). KHÔNG cần ảnh — dịch vụ tự tạo thư mục chứng từ, ✅ kèm link. Đã hỏi và người gửi trả lời → xac_nhan_message_id = tin trả lời đó. Thành công thì dịch vụ tự báo ✅ trong nhóm.",
       inputSchema: { message_id: ID_TIN, loai: z.enum(["thu", "chi"]), so_tien: z.number().int().positive(), noi_dung: z.string().min(1).max(300),
         hoa_don: z.enum(["Có", "Không", "Chờ xuất"]), nguon_quy: z.string().max(60).optional(), ghi_chu: z.string().max(300).optional(),
-        xac_nhan_message_id: ID_TIN.optional(), ngay: z.string().regex(/^\d{1,2}\/\d{1,2}\/\d{4}$/).optional() } },
+        xac_nhan_message_id: ID_TIN.optional(),
+        ngay: z.string().regex(/^\d{1,2}\/\d{1,2}\/\d{4}$/).optional().describe("ngày thu/chi ghi trong tin, dd/mm/yyyy (năm theo giờ tin); tin không ghi ngày → bỏ trống") } },
     boc(async (a) => {
       if (a.message_id !== tin_id && a.xac_nhan_message_id !== tin_id) return ngoaiPhamVi("message_id phải là tin đang xử lý, hoặc xac_nhan_message_id là tin đang xử lý");
       const kq = await core.ghiKhoan({ chat_id, ...a });
