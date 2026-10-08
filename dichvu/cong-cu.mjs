@@ -18,12 +18,15 @@ const boc = (fn, khiLoi = () => {}) => async (a) => {
 };
 
 export function taoCongCu({ core, kho, hopThu, canhBao = { bao: () => {} }, nhatKy = () => {} }) {
-  const phien = new Map(); // token → { viec_id, chat_id }
+  const phien = new Map(); // token → { viec_id, chat_id, tin_id }
 
-  function dangKy(s, { viec_id, chat_id }) {
+  function dangKy(s, { viec_id, chat_id, tin_id }) {
     const bao = (noi_dung) => hopThu.xepGui({ chat_id, noi_dung, viec_id, loai: "da_ghi" });
     const cuaNhom = (id) => { const t = kho.lay(id); return t && t.chat_id === chat_id && !t.la_bot ? t : null };
     // Sheet/Drive ném lỗi khi ghi/sửa → người quản lý phải biết (spec §Vận hành), khoá theo nhóm để không lặp.
+    // Phạm vi = TIN của việc (review cuối C1): chỉ ghi khoản của chính tin này, hoặc khoản mà tin này trả lời (so-core kiểm
+    // tiếp đúng người gửi); sửa / bỏ hỏi cũng phải do chính tin này yêu cầu. Tin cài lệnh "ghi #1 của Bình" bị chặn ở đây.
+    const ngoaiPhamVi = (ly_do) => ({ ok: false, ly_do: `${ly_do} — chỉ xử lý được tin đang xử lý (message_id ${tin_id})` });
     const loiSo = (e) => canhBao.bao(`so_loi:${chat_id}`, `Ghi sổ lỗi ở nhóm ${chat_id}: ${String(e?.message ?? e).slice(0, 150)}`);
     s.registerTool("kiem_tin", { description: "Đọc lại 1 tin trong nhóm và chạy bộ đọc luật (chỉ tham chiếu): đã ghi sổ chưa, danh sách quỹ, gợi ý thiếu gì.",
       inputSchema: { message_id: ID_TIN } }, boc((a) => core.kiemTin({ chat_id, ...a })));
@@ -32,6 +35,7 @@ export function taoCongCu({ core, kho, hopThu, canhBao = { bao: () => {} }, nhat
         hoa_don: z.enum(["Có", "Không", "Chờ xuất"]), nguon_quy: z.string().max(60).optional(), ghi_chu: z.string().max(300).optional(),
         xac_nhan_message_id: ID_TIN.optional(), ngay: z.string().regex(/^\d{1,2}\/\d{1,2}\/\d{4}$/).optional() } },
     boc(async (a) => {
+      if (a.message_id !== tin_id && a.xac_nhan_message_id !== tin_id) return ngoaiPhamVi("message_id phải là tin đang xử lý, hoặc xac_nhan_message_id là tin đang xử lý");
       const kq = await core.ghiKhoan({ chat_id, ...a });
       if (!kq?.ok) return kq;
       const m = kho.lay(a.message_id), anhLoi = (kq.canh_bao || []).some((x) => /ảnh/.test(x));
@@ -44,6 +48,7 @@ export function taoCongCu({ core, kho, hopThu, canhBao = { bao: () => {} }, nhat
       inputSchema: { message_id: ID_TIN, yeu_cau_message_id: ID_TIN, noi_dung: z.string().min(1).max(300).optional(), loai: z.enum(["thu", "chi"]).optional(),
         so_tien: z.number().int().positive().optional(), hoa_don: z.enum(["Có", "Không", "Chờ xuất"]).optional(), nguon_quy: z.string().max(60).optional() } },
     boc(async (a) => {
+      if (a.yeu_cau_message_id !== tin_id) return ngoaiPhamVi("yeu_cau_message_id phải là tin đang xử lý");
       const kq = await core.suaKhoan({ chat_id, ...a });
       if (kq?.ok) { const m = kho.lay(a.message_id); bao(`✏️ Đã sửa #${m?.ma} theo yêu cầu của ${m?.ten || "người gửi"}`) }
       return kq;
@@ -55,6 +60,7 @@ export function taoCongCu({ core, kho, hopThu, canhBao = { bao: () => {} }, nhat
       inputSchema: { text: z.string().min(1).max(6000), hoi_ve: ID_TIN.optional(), bo_hoi: ID_TIN.optional() } },
     boc(async ({ text, hoi_ve, bo_hoi }) => {
       for (const [ten, id] of [["hoi_ve", hoi_ve], ["bo_hoi", bo_hoi]]) if (id && !cuaNhom(id)) return { ok: false, ly_do: `${ten} phải là message_id một tin người dùng trong nhóm này` };
+      if (bo_hoi && cuaNhom(bo_hoi).nguoi_id !== kho.lay(tin_id)?.nguoi_id) return ngoaiPhamVi("bo_hoi chỉ cho khoản của chính người gửi tin này");
       hopThu.xepGui({ chat_id, noi_dung: text, hoi_ve: hoi_ve ?? null, viec_id, loai: "tra_loi" });
       if (bo_hoi) kho.boHoi(bo_hoi);
       return { ok: true };
@@ -83,7 +89,7 @@ export function taoCongCu({ core, kho, hopThu, canhBao = { bao: () => {} }, nhat
   });
 
   return {
-    moPhien: ({ id, chat_id }) => { const token = randomBytes(32).toString("hex"); phien.set(token, { viec_id: id, chat_id: String(chat_id) }); return token },
+    moPhien: ({ id, chat_id, tin_id }) => { const token = randomBytes(32).toString("hex"); phien.set(token, { viec_id: id, chat_id: String(chat_id), tin_id: String(tin_id) }); return token },
     dongPhien: (token) => { phien.delete(token) },
     nghe: (cong) => new Promise((ok, loi) => { may.once("error", loi); may.listen(cong, "127.0.0.1", () => ok(may.address().port)) }),
     dong: () => new Promise((ok) => { may.closeAllConnections?.(); may.close(() => ok()) }),

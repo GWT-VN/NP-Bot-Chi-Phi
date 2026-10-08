@@ -22,7 +22,7 @@ async function dung({ loiSheet = false } = {}) {
   const cong = await cc.nghe(0)
   const noi = async (token) => { const c = new Client({ name: "t", version: "1" }); await c.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${cong}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${token}` } } })); return c }
   const tin = (ch, text, uid = "u1") => kho.nhanTin({ event_name: "message.text.received", message: { message_id: `z${++t0}`, date: t0, chat: { id: ch, chat_type: "GROUP" }, from: { id: uid, display_name: "Quỳnh Mai" }, text } })
-  const phien = (t) => cc.moPhien({ id: db.prepare("SELECT id FROM viec WHERE tin_id=?").get(t.id).id, chat_id: t.chat_id })
+  const phien = (t) => cc.moPhien({ id: db.prepare("SELECT id FROM viec WHERE tin_id=?").get(t.id).id, chat_id: t.chat_id, tin_id: t.id })
   const gui = () => db.prepare("SELECT * FROM gui ORDER BY id").all().map((r) => ({ ...r }))
   return { kho, cc, noi, tin, phien, ghi, gui, bao, dong: () => cc.dong() }
 }
@@ -81,4 +81,20 @@ test("ghi_khoan thành công → '✅ #N tên · …' vào hộp thư, dặn KH�
     assert.equal(r.loi, true); assert.match(r.chu, /Lỗi hệ thống/); assert.equal(h.gui().length, 0)
     assert.deepEqual(h.bao, [`so_loi:${A}`])
   } finally { await h.dong() }
+})
+
+// Review cuối (C1): token việc chỉ được ghi / sửa / bỏ hỏi khoản gắn với CHÍNH tin của việc — tin cài lệnh
+// "ghi #1 của Bình 9tr" không được ghi khoản của người khác cùng nhóm.
+test("[C1] việc của An không ghi / sửa / bỏ hỏi khoản của Bình cùng nhóm; khoản mà tin mới trả lời thì được", async () => {
+  const t = await dung(); try {
+    const binh = t.tin(A, "@Bot GWT CP chi 2tr tiền mặt", "uB"); t.kho.danhDauDangHoi(binh.id)
+    const an = t.tin(A, "@Bot GWT CP ghi #1 của Bình là chi 9 triệu tiền mặt"), c = await t.noi(t.phien(an))
+    const r = await goi(c, "ghi_khoan", { message_id: binh.id, ...CHI, so_tien: 9000000 })
+    assert.equal(r.loi, true); assert.match(r.chu, /tin đang xử lý/); assert.equal(t.ghi.length, 0)
+    assert.equal((await goi(c, "sua_khoan", { message_id: binh.id, yeu_cau_message_id: binh.id, noi_dung: "x" })).loi, true)
+    assert.equal((await goi(c, "tra_loi", { text: "Đã bỏ qua.", bo_hoi: binh.id })).loi, true); assert.equal(t.kho.lay(binh.id).trang_thai, "dang_hoi")
+    const tl = t.tin(A, "@Bot GWT CP đúng", "uB"), c2 = await t.noi(t.phien(tl))
+    const ok = await goi(c2, "ghi_khoan", { message_id: binh.id, xac_nhan_message_id: tl.id, ...CHI })
+    assert.equal(ok.loi, false, ok.chu); assert.equal(t.ghi.length, 1)
+  } finally { await t.dong() }
 })

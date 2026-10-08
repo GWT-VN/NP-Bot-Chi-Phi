@@ -49,7 +49,7 @@ export function taoHangDoi({ db, kho, core, congCu, hopThu, canhBao, nhom, tenBo
     const kiemTin = await Promise.resolve().then(() => core.kiemTin({ chat_id: t.chat_id, message_id: t.id })).catch(() => null);
     const nguCanh = dungNguCanh({ viec: v, tin: t, nhom: n, tenBot, traLoi: kho.khoanGocCua(t), dangHoi: kho.dangHoiCua(t.chat_id, t.nguoi_id, now()),
       daGui: hopThu.cuaViec(v.id), kiemTin, dsQuy });
-    const token = congCu.moPhien({ id: v.id, chat_id: t.chat_id });
+    const token = congCu.moPhien({ id: v.id, chat_id: t.chat_id, tin_id: t.id });
     let kq;
     try { kq = await chay({ nguCanh, token }) } finally { congCu.dongPhien(token) }
     const tom = JSON.stringify({ kieu: kq.kieu, luot: kq.luot ?? null, ma_thoat: kq.maThoat ?? null });
