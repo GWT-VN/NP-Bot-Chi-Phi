@@ -85,32 +85,25 @@ node scanner.mjs --xoadong=<dòng>:<sốtiền>[:<dd/mm/yyyy>] [--dry]
 node scanner.mjs --suadong=<dòng>:<msgId> [--dry]
 ```
 
-## Bot Zalo (nhóm đoàn TQ, 2026-10-07)
+## Bot Zalo = dịch vụ nền `np-dichvu` (2026-10-08)
 
-Chạy **song song** bot Discord, dùng chung lõi sổ (`so-core.mjs`, `books.mjs`, `drive.mjs`). Bot "Bot GWT CP" (Zalo Bot
-Platform) chỉ nhận tin có **@Bot GWT CP** trong nhóm đã khai ở `config.json` `zalo.groups`; mỗi khoản = 1 ảnh bill, nội
-dung trong chú thích ảnh. Vì sao làm thế này, đo thật những gì: spec `docs/superpowers/specs/2026-10-07-np-bot-zalo-design.md`;
-các bước: plan `docs/superpowers/plans/2026-10-07-np-bot-zalo.md`. Bản ghim nhóm: `HUONG-DAN-ZALO.md`.
+Bot "Bot GWT CP" (Zalo Bot Platform) cho nhóm Zalo đã khai ở `config.json` `zalo.groups`; chỉ nhận tin có **@Bot GWT CP**,
+mỗi khoản = 1 ảnh bill, nội dung trong chú thích (bản ghim: `HUONG-DAN-ZALO.md`). Chạy **song song** bot Discord, dùng chung lõi
+sổ. Vì sao: spec `docs/superpowers/specs/2026-10-08-np-dichvu-design.md` (nghiệp vụ: `…/2026-10-07-np-bot-zalo-design.md`).
 
 | Phần | Vai trò |
 |---|---|
-| `mcp/npzalo.mjs` | MỘT tiến trình: channel Claude Code (long-poll `getUpdates`, chỉ nhóm đã khai) + 5 lệnh sổ (ghi/sửa xong tự báo "✅ #N"/"✏️" trong nhóm) + `tra_loi` (chỉ vào nhóm) + `tai_anh` |
-| `zalo/kho.mjs` | Kho tin JSONL (Zalo không có API đọc lại tin / Reply / ✅): dáng tin Discord cho so-core, số `#N` theo nhóm, suy Reply theo `#N` hoặc "đúng 1 khoản đang hỏi" |
-| `zalo/api.mjs` · `zalo/nhom.mjs` | Gọi Zalo Bot API (lỗi không lộ token) · liệt kê nhóm bot thấy mà chưa khai (lấy `chat_id`) |
-| `bot-zalo/` | Phiên Claude của bot Zalo: `CLAUDE.md`, `bot-settings.json` (KHÔNG nạp plugin Discord) |
-| `mac/*-zalo.sh` | tmux `npz`, `watchdog-zalo.sh`, launchd `com.gwt.np.zalo.watchdog` — tách hẳn bot Discord |
+| `dichvu/chinh.mjs` | Điểm vào (launchd), cấu hình/bí mật, nhật ký, sao lưu + dọn, `--kiem-tra`, các vòng nhận/worker/gửi/bảo trì |
+| `dichvu/csdl.mjs` | SQLite `~/Bots/np-dichvu/np.sqlite`: tin (#N, luật hiểu trả lời), việc, hộp thư, mốc giờ; adapter cho so-core |
+| `dichvu/zalo.mjs` · `hop-thu.mjs` | Nhận tin + tải ảnh ngay · gửi tin có thử lại + cảnh báo nhóm vận hành |
+| `dichvu/hang-doi.mjs` · `claude.mjs` · `cong-cu.mjs` | Mỗi tin một việc → `claude -p --bare` (lời dặn `dichvu/loi-dan.md`) → công cụ MCP HTTP theo token việc |
+| `mac/cai-dichvu.sh` | launchd `com.gwt.np.dichvu` (KeepAlive) |
 
-**Khoá Drive dùng chung:** hai bot cùng dựng cây chứng từ nên việc lưu ảnh lên Drive chạy dưới một khoá
-`~/.claude/channels/np-drive.lock` (`lib/khoa.mjs`, tự phá nếu bỏ lại quá 5 phút) — không thì ghi cùng lúc ra trùng số
-"NN." / trùng thư mục tháng.
+**Bí mật** (chỉ Mac mini, quyền 600): `~/Bots/.secrets/np-dichvu.env` — `ZALO_BOT_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN` (từ
+`claude setup-token`, hạn 1 năm), `CLAUDE_TOKEN_NGAY_TAO` (YYYY-MM-DD, để dịch vụ nhắc trước 30 ngày).
 
-**Bí mật:** chỉ trên Mac mini, `~/.claude/channels/zalo-np/.env` (`ZALO_BOT_TOKEN`; `ZALO_APP_ID`/`ZALO_APP_SECRET` của app
-OA dự phòng). Kho tin, nhật ký bỏ qua (`bo-qua.jsonl`), ảnh tạm (`inbox/`) cũng nằm ở thư mục đó.
+**Hằng ngày:** `node dichvu/chinh.mjs --kiem-tra` xem tình trạng (việc đang chờ, lần nhận Zalo, nhóm chưa khai, cảnh báo).
+Cập nhật: `git pull && npm ci && launchctl kickstart -k gui/$(id -u)/com.gwt.np.dichvu`. Gỡ: `zsh mac/cai-dichvu.sh go`.
 
-**Khai nhóm:** có người @Bot trong nhóm → `node zalo/nhom.mjs` in `chat_id` → thêm vào `zalo.groups`
-`{ "<chat_id>": { "name": "...", "tab": "<tab sổ>" } }` (nhóm thử thêm `"thu": true`: tab riêng, không gộp quỹ) →
-`node setup.mjs --tab-kenh` → `tmux kill-session -t npz` (watchdog mở lại trong ≤ 10 phút).
-
-**Hằng ngày:** `tmux attach -t npz` để xem (Ctrl+B rồi D để thoát); tắt hẳn `zsh mac/stop-bot-zalo.sh`; bật
-`zsh mac/cai-launchd-zalo.sh`. Lần đầu (hoặc khi watchdog log "KẸT") phải attach để trả lời hộp thoại trust thư mục; hộp
-cảnh báo dev-channel thì script tự bấm qua.
+**Khai nhóm:** có người @Bot trong nhóm → `--kiem-tra` hiện `chat_id` ở `nhom_chua_khai` → thêm vào `zalo.groups`
+(nhóm thử thêm `"thu": true`) → `node setup.mjs --tab-kenh` → kickstart. Nhóm nhận cảnh báo: điền `zalo.nhomVanHanh`.
