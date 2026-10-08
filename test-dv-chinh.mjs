@@ -54,7 +54,7 @@ test("bảo trì: sao lưu mỗi ngày 1 bản (VACUUM INTO), giữ 14 bản m�
   assert.equal(f, join(thuMuc.saoLuu, "np-2026-10-20.sqlite")); assert.equal(bt.saoLuu(), null)
   const ds = readdirSync(thuMuc.saoLuu).sort()
   assert.equal(ds.length, 14); assert.equal(ds[0], "np-2026-09-03.sqlite"); assert.equal(ds.at(-1), "np-2026-10-20.sqlite")
-  assert.equal(moCsdl(f).prepare("SELECT so FROM phien_ban").get().so, 1)
+  assert.equal(moCsdl(f).prepare("SELECT so FROM phien_ban").get().so, 2)
   mkdirSync(thuMuc.anh, { recursive: true })
   const cu = join(thuMuc.anh, "cu.jpg"), moi = join(thuMuc.anh, "moi.jpg"); writeFileSync(cu, "x"); writeFileSync(moi, "x")
   const xa = new Date(T - 40 * 86400e3); utimesSync(cu, xa, xa)

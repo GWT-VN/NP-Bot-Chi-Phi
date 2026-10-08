@@ -19,12 +19,12 @@ const moi = () => { const db = moCsdl(":memory:"); return { db, k: taoKhoTin(db,
 const hoi = (k, g) => { const h = k.ghiBot({ chat_id: NHOM, msg_goc: `b${++t0}`, luc: t0, noi_dung: "quỹ nào?", hoi_ve: g.id }); k.danhDauDangHoi(g.id); return h };
 const viec = (db, id) => ({ ...db.prepare("SELECT * FROM viec WHERE tin_id=?").get(id) });
 
-test("moCsdl: dựng cấu trúc phiên bản 1; mở lại file không dựng lại, dữ liệu còn", () => {
+test("moCsdl: dựng cấu trúc phiên bản mới nhất (2); mở lại file không dựng lại, dữ liệu còn", () => {
   const f = join(mkdtempSync(join(tmpdir(), "dv-")), "np.sqlite")
   const db1 = moCsdl(f), a = taoKhoTin(db1, { tenBot: "Bot GWT CP" }).nhanTin(cn("@Bot GWT CP chi 50k"))
   db1.close()
   const db2 = moCsdl(f)
-  assert.equal(db2.prepare("SELECT so FROM phien_ban").get().so, 1)
+  assert.equal(db2.prepare("SELECT so FROM phien_ban").get().so, 2)
   assert.equal(taoKhoTin(db2).lay(a.id).noi_dung, "chi 50k")
 })
 

@@ -1,7 +1,7 @@
 // CSDL SQLite của dịch vụ np-dichvu (spec 2026-10-08 §CSDL) — nguồn sự thật duy nhất: tin, số #N, khoản đang hỏi, hàng
 // đợi việc, hộp thư gửi, mốc giờ. File này giữ CẤU TRÚC (có phiên bản, tự nâng khi mở), bảng `tin` + LUẬT HIỂU TRẢ LỜI
-// (chuyển từ zalo/kho.mjs, đã sửa theo review C1/I1/I2) và adapter "dáng tin Discord" cho lõi so-core. Bảng viec / gui do
-// hang-doi.mjs / hop-thu.mjs giữ SQL của mình.
+// (chuyển từ zalo/kho.mjs, đã sửa theo review C1/I1/I2) và adapter "dáng tin Discord" cho lõi so-core. Bảng viec / gui / chung_tu do
+// hang-doi.mjs / hop-thu.mjs / chung-tu.mjs giữ SQL của mình.
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -26,6 +26,12 @@ CREATE TABLE gui(id INTEGER PRIMARY KEY, chat_id TEXT NOT NULL, thu_tu INTEGER N
   msg_goc TEXT, loi_cuoi TEXT, tao_luc INTEGER NOT NULL);
 CREATE INDEX gui_cho ON gui(trang_thai, sau_luc);
 CREATE TABLE moc(khoa TEXT PRIMARY KEY, luc INTEGER NOT NULL, ghi_chu TEXT);
+`,
+// v2 (2026-10-08): chứng từ theo khoản — thư mục Drive của khoản đã có file chưa, để quét + nhắc bổ sung (dichvu/chung-tu.mjs).
+`CREATE TABLE chung_tu(tin_id TEXT PRIMARY KEY REFERENCES tin(id), chat_id TEXT NOT NULL, ma INTEGER, ten TEXT, loai TEXT,
+  so_tien INTEGER, ngay TEXT, thu_muc TEXT NOT NULL, link TEXT NOT NULL, ghi_luc INTEGER NOT NULL,
+  co_file INTEGER NOT NULL DEFAULT 0, bo_sung_luc INTEGER);
+CREATE INDEX chung_tu_thieu ON chung_tu(co_file, chat_id);
 `];
 
 export function moCsdl(file) {
