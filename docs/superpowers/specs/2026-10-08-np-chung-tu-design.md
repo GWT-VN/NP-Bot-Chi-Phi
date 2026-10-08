@@ -18,7 +18,7 @@ Khuôn ghim chưa có ô ngày, nên khoản báo muộn bị ghi ngày gửi ti
 |---|---|
 | 1 | Khoản **không ảnh vẫn ghi**. Bot luôn tạo thư mục khoản; ✅ kèm link. Gửi kèm 1 ảnh thì bot tải ảnh đó vào như cũ. |
 | 2 | **Mọi khoản phải có chứng từ**, chụp gì cũng được. Không có ngoại lệ "không bill". |
-| 3 | Nhắc **mỗi tối một tin tổng hợp cho mỗi nhóm** (mặc định 20:00). Thiếu quá 3 ngày thì đánh dấu "(quá 3 ngày)" ngay trong tin đó, vẫn nhắc tiếp. |
+| 3 | Nhắc **mỗi tối một tin tổng hợp cho mỗi nhóm** (chủ dự án đổi sang **8:00 sáng**, 2026-10-08). Thiếu quá 3 ngày thì đánh dấu "(quá 3 ngày)" ngay trong tin đó, vẫn nhắc tiếp. |
 | 4 | **Không dùng nhóm vận hành.** Cảnh báo kỹ thuật vẫn chỉ vào nhật ký / `--kiem-tra`. |
 | 5 | Bổ sung chứng từ xong → bot sửa ghi chú sổ thành "đã bổ sung chứng từ dd/mm". |
 | 6 | Khuôn: `Thu/Chi - Số tiền - Nội dung - Tên quỹ - Ngày`, **ngày không bắt buộc** (bỏ trống = ngày gửi tin). ✅ hiện ngày đã ghi. Sửa được ngày ("sửa #3 ngày 6/10"). |
@@ -67,7 +67,7 @@ Cả hai đều là tuỳ chọn mới, nên Discord không đổi.
 
 ### 4. Nhắc tối
 
-- **Giờ nhắc:** `config.json` `dichvu.gioNhacChungTu` (mặc định `"20:00"`, giờ VN).
+- **Giờ nhắc:** `config.json` `dichvu.gioNhacChungTu` (mặc định `"08:00"`; viết `"8:00"` cũng được, giờ VN).
 - **Khi nào gửi:** ở lượt bảo trì đầu tiên từ giờ đó trở đi trong ngày. Bot quét trước (để khoản vừa bổ sung không bị nhắc), rồi với mỗi nhóm đã khai còn khoản `co_file = 0` thì gửi **một** tin qua hộp thư.
 - **Mỗi ngày chỉ một lần**, nhờ mốc `nhac_ct:<chat_id>:<YYYY-MM-DD>`; khởi động lại cũng không gửi lặp.
 - **Nội dung:** `📎 Còn thiếu chứng từ (n):` rồi mỗi khoản một dòng `#N Tên 50.000đ <link>`.

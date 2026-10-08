@@ -85,7 +85,7 @@ test("tinMau: khuôn Thu/Chi - Số tiền - Nội dung - Tên quỹ + ví dụ 
   const m = tinMau({ zalo: { tenBot: "Bot GWT CP" }, quy: [{ ten: "GWT - TK Công ty" }, { ten: "GWT - Tiền mặt" }, { ten: "Thuỷ" }] })
   assert.equal(m.text, "📌 Báo chi phí: tag @Bot GWT CP, kèm 1 ảnh bill nếu có\nThu/Chi - Số tiền - Nội dung - Tên quỹ - Ngày\n"
     + "VD: Chi - 50k - Nước khách - Tiền mặt - 7/10\nQuỹ: TK Công ty · Tiền mặt · Thuỷ\n"
-    + "Ngày bỏ trống = hôm nay. Chưa có ảnh vẫn gửi được: ✅ kèm link để tải chứng từ, 20:00 bot nhắc khoản còn thiếu.")
+    + "Ngày bỏ trống = hôm nay. Chưa có ảnh vẫn gửi được: ✅ kèm link để tải chứng từ, mỗi ngày 8:00 bot nhắc khoản còn thiếu.")
   assert.deepEqual(m.text_styles.map((s) => [m.text.slice(s.start, s.start + s.len), s.st]),
     [["Thu/Chi - Số tiền - Nội dung - Tên quỹ - Ngày", ["i", "f_13"]], ["VD: Chi - 50k - Nước khách - Tiền mặt - 7/10", ["i", "f_13"]]])
 })

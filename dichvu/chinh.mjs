@@ -18,7 +18,7 @@ import { taoChungTu } from "./chung-tu.mjs";
 import { taoCoreThat } from "../mcp/npso.mjs";
 import { taoApi } from "../zalo/api.mjs";
 
-export const MAC_DINH_DICH_VU = { cong: 8790, model: "claude-sonnet-5-5", maxTurns: 12, thoiGianToiDaGiay: 240, gioNhacChungTu: "20:00" };
+export const MAC_DINH_DICH_VU = { cong: 8790, model: "claude-sonnet-5-5", maxTurns: 12, thoiGianToiDaGiay: 240, gioNhacChungTu: "08:00" };
 const ngayVN = (t) => new Date(t).toLocaleDateString("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" });
 
 /** File KEY=VALUE (bỏ dòng trống / '#'). Thiếu khoá bắt buộc → lỗi nêu tên khoá, không in giá trị. */
@@ -104,9 +104,10 @@ export function tomTat(db, now = Date.now(), daKhai = []) {
  *  chat_id / text / parse_mode / text_styles), nên bot gửi tin mẫu: phần cú pháp in nghiêng + chữ nhỏ (Zalo không có màu xám). */
 export function tinMau(cfg) {
   const mau = ["Thu/Chi - Số tiền - Nội dung - Tên quỹ - Ngày", "VD: Chi - 50k - Nước khách - Tiền mặt - 7/10"];
+  const gio = String(cfg.dichvu?.gioNhacChungTu ?? MAC_DINH_DICH_VU.gioNhacChungTu).trim().replace(/^0(\d)/, "$1"); // "08:00" → "8:00"
   const quy = (cfg.quy || []).map((q) => q.ten.replace(/^GWT - /, "")).join(" · ");
   const text = [`📌 Báo chi phí: tag @${cfg.zalo?.tenBot || "Bot"}, kèm 1 ảnh bill nếu có`, ...mau, ...(quy ? [`Quỹ: ${quy}`] : []),
-    "Ngày bỏ trống = hôm nay. Chưa có ảnh vẫn gửi được: ✅ kèm link để tải chứng từ, 20:00 bot nhắc khoản còn thiếu."].join("\n");
+    `Ngày bỏ trống = hôm nay. Chưa có ảnh vẫn gửi được: ✅ kèm link để tải chứng từ, mỗi ngày ${gio} bot nhắc khoản còn thiếu.`].join("\n");
   return { text, text_styles: mau.map((d) => ({ start: text.indexOf(d), len: d.length, st: ["i", "f_13"] })) }; // chỉ số JS = UTF-16 như Zalo
 }
 

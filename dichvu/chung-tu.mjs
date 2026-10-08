@@ -9,7 +9,9 @@ const gioVN = (t) => new Date(t).toLocaleTimeString("en-GB", { timeZone: "Asia/H
 const ddmm = (t) => { const [, m, d] = ngayVN(t).split("-"); return `${d}/${m}` };
 export const idThuMuc = (link) => /\/folders\/([\w-]+)/.exec(String(link || ""))?.[1] ?? null;
 
-export function taoChungTu({ db, hopThu, core, coFile, nhom = {}, gioNhac = "20:00", now = Date.now, nhatKy = () => {} }) {
+export function taoChungTu({ db, hopThu, core, coFile, nhom = {}, gioNhac = "08:00", now = Date.now, nhatKy = () => {} }) {
+  // "8:00" / "08:00" → "08:00" để so chuỗi với giờ VN cho đúng (chủ dự án đặt 8:00, 2026-10-08); sai dạng → 08:00.
+  const gm = /^(\d{1,2}):(\d{2})$/.exec(String(gioNhac).trim()), gioChuan = gm ? `${gm[1].padStart(2, "0")}:${gm[2]}` : "08:00";
   const q = {
     // bo_sung_luc: lúc đã sửa ghi chú sổ — hoặc lúc ghi nếu có ảnh từ đầu (không có gì để sửa). NULL + co_file=1 = còn phải sửa sổ.
     them: db.prepare(`INSERT OR IGNORE INTO chung_tu(tin_id,chat_id,ma,ten,loai,so_tien,ngay,thu_muc,link,ghi_luc,co_file,bo_sung_luc)
@@ -56,7 +58,7 @@ export function taoChungTu({ db, hopThu, core, coFile, nhom = {}, gioNhac = "20:
   /** Từ giờ nhắc trở đi trong ngày: mỗi nhóm đã khai còn khoản thiếu → MỘT tin (mốc nhac_ct:<nhóm>:<ngày> chống lặp). */
   function nhacToi() {
     const t = now();
-    if (gioVN(t) < gioNhac) return 0;
+    if (gioVN(t) < gioChuan) return 0;
     const theoNhom = new Map();
     for (const r of q.thieu.all()) {
       if (!Object.prototype.hasOwnProperty.call(nhom, r.chat_id)) continue;

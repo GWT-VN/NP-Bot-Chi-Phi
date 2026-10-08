@@ -106,3 +106,15 @@ test("[rà soát] sửa ghi chú sổ lỗi tạm → lượt quét sau làm l�
   await t.ct.quet(); assert.equal(lan, 2)
   assert.ok(t.db.prepare("SELECT bo_sung_luc FROM chung_tu WHERE tin_id=?").get(a.id).bo_sung_luc)
 })
+
+// Chủ dự án 2026-10-08: nhắc lúc 8:00 sáng — cấu hình viết "8:00" (không đệm 0) vẫn phải nhắc đúng giờ.
+test("nhắc tối → nhắc sáng: gioNhac '8:00' (không đệm 0) — 07:59 chưa nhắc, 08:01 nhắc", () => {
+  const db = moCsdl(":memory:"), kho = taoKhoTin(db, { tenBot: "Bot GWT CP" })
+  let luc = Date.parse("2026-10-10T07:59:00+07:00")
+  const hopThu = taoHopThu({ db, kho, api: { guiChu: async () => [{ message_id: "b", date: luc }] }, now: () => luc })
+  const ct = taoChungTu({ db, hopThu, core: {}, coFile: async () => false, nhom: { [G]: {} }, gioNhac: "8:00", now: () => luc })
+  const tin = kho.nhanTin(cn("@Bot GWT CP chi 50k"), { now: luc })
+  ct.them({ tin, loai: "chi", so_tien: 50000, link: "https://drive.google.com/drive/folders/F1", co_anh: false })
+  assert.equal(ct.nhacToi(), 0)
+  luc = Date.parse("2026-10-10T08:01:00+07:00"); assert.equal(ct.nhacToi(), 1)
+})

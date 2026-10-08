@@ -12,7 +12,7 @@ Nên có: **thu/chi** · **số tiền** · **hoá đơn đỏ** (không ghi = k
 Thuỷ / Cá nhân ứng). Thiếu gì bot hỏi lại.
 
 - **Chứng từ:** bot ghi xong trả lời ✅ kèm **link thư mục chứng từ** của khoản. Chưa có ảnh, hoặc nhiều ảnh (vé + hoá đơn…),
-  thì tải vào link đó. **Khoản nào cũng phải có chứng từ**: 20:00 bot nhắc trong nhóm các khoản còn thiếu. Gửi album thì bot
+  thì tải vào link đó. **Khoản nào cũng phải có chứng từ**: mỗi sáng 8:00 bot nhắc trong nhóm các khoản còn thiếu. Gửi album thì bot
   không nhận được ảnh (Zalo không chuyển album cho bot).
 - **Nhiều khoản** → mỗi khoản một tin riêng.
 - **Đừng gửi ảnh rồi mới gõ chữ ở tin sau** — ảnh không có @ thì bot không thấy.
