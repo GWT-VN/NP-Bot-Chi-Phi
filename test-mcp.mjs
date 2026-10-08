@@ -56,6 +56,10 @@ test("lưu chứng từ Drive đi qua khoá liên tiến trình dùng chung (KHO
   assert.match(KHOA_DRIVE, /np-drive\.lock$/)
   const nguon = (await import("node:fs")).readFileSync(new URL("./mcp/npso.mjs", import.meta.url), "utf8")
   assert.match(nguon, /voiKhoa\(KHOA_DRIVE, \(\) => drive\.luuChungTu\(/)
+  // Dịch vụ Zalo (2026-10-08): bật thuMucRong để khoản không ảnh vẫn có thư mục; mặc định false (bot Discord như cũ).
+  assert.match(nguon, /taoCoreThat\(\{ cfg = null, nguonTin = null, thuMucRong = false \} = \{\}\)/)
+  assert.match(nguon, /if \(\(!buffers\.length && !thuMucRong\) \|\| !folderId\) return "";/)
+  assert.match(nguon, /taoRong: thuMucRong/)
 })
 
 // np-dichvu (2026-10-08): ảnh đã được dịch vụ tải về máy lúc nhận tin → taiAnh đọc tệp, KHÔNG gọi mạng (link Zalo có thể hết hạn).

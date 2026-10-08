@@ -358,3 +358,26 @@ test("nền tảng không có link tin (Zalo) truyền discord.link → Ghi chú
   const gc = t.ghi[0].rows[0][10]
   assert.match(gc, /đã xác nhận: Zalo #9 \(tin 105\)/); assert.doesNotMatch(gc, /discord\.com/)
 })
+
+// Dịch vụ Zalo 2026-10-08: ✅ hiện ngày đã ghi + biết đã có ảnh chưa; sửa ngày; bổ sung chứng từ sau.
+test("[chứng từ] ghiKhoan trả ngay dd/mm/yyyy (chuẩn hoá thiếu số 0) + co_anh", async () => {
+  const r = await dung([goc]).so.ghiKhoan({ ...DUNG, ngay: "7/10/2026" })
+  assert.deepEqual([r.ngay, r.co_anh], ["07/10/2026", true])
+  const g2 = msg("101", "chi taxi 50k qct", { attachments: [] })
+  const r2 = await dung([g2]).so.ghiKhoan({ ...DUNG, message_id: "101" })
+  assert.deepEqual([r2.ngay, r2.co_anh], ["05/10/2026", false])
+})
+test("[Review Focus] sua_khoan đổi ngày: chuẩn hoá rồi chuyển cho sổ; sai dạng → từ chối, không đụng sổ", async () => {
+  const t = dung([goc, tl("110", "sửa ngày 6/10", "100")], { dongTheoMa: { "100": 7 } })
+  const r = await t.so.suaKhoan({ chat_id: KENH, message_id: "100", yeu_cau_message_id: "110", ngay: "6/10/2026" })
+  assert.equal(r.ok, true, r.ly_do); assert.equal(t.sua[0][1].ngay, "06/10/2026")
+  const sai = await t.so.suaKhoan({ chat_id: KENH, message_id: "100", yeu_cau_message_id: "110", ngay: "6-10" })
+  assert.equal(sai.ok, false); assert.match(sai.ly_do, /dd\/mm\/yyyy/); assert.equal(t.sua.length, 1)
+})
+test("[chứng từ] boSungChungTu: bỏ 'không có ảnh chứng từ', ghi ngày bổ sung; chưa có dòng / kênh lạ → từ chối", async () => {
+  const t = dung([goc], { dongTheoMa: { "100": 7 } })
+  const r = await t.so.boSungChungTu({ chat_id: KENH, message_id: "100", ngay: "08/10" })
+  assert.equal(r.ok, true); assert.deepEqual(t.sua[0], [7, { boGhiChu: "không có ảnh chứng từ", ghiChuThem: "đã bổ sung chứng từ 08/10" }, KENH])
+  assert.equal((await t.so.boSungChungTu({ chat_id: KENH, message_id: "999", ngay: "08/10" })).ok, false)
+  assert.equal((await t.so.boSungChungTu({ chat_id: "lạ", message_id: "100", ngay: "08/10" })).ok, false)
+})

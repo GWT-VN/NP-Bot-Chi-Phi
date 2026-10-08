@@ -14,6 +14,8 @@ export const HOA_DON = ["Có", "Không", "Chờ xuất"];
 const ND = (m) => m.author?.global_name || m.author?.username || "";
 const toDMY = (iso) => { const [y, mo, d] = String(iso).split("-"); return `${d}/${mo}/${y}` };
 const dmyIso = (s) => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(s || "").trim()); return m ? `${m[3]}-${m[2]}-${m[1]}` : null };
+// "7/10/2026" → "07/10/2026" (Claude / người gửi viết thiếu số 0); sai dạng → null.
+const chuanNgay = (s) => { const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(s ?? "").trim()); return m ? `${m[1].padStart(2, "0")}/${m[2].padStart(2, "0")}/${m[3]}` : null };
 
 export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
   const quyTen = new Set((cfg.quy || []).map((q) => q.ten));
@@ -117,6 +119,7 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     try { await discord.react(String(a.chat_id), String(m.id), "✅") } catch (e) { dau.push(`không thả được ✅: ${e.message}`) }
     try { await discord.unreact(String(a.chat_id), String(m.id), "❓") } catch {}
     return { ok: true, da_ghi: `${a.loai.toUpperCase()} ${a.so_tien.toLocaleString("vi-VN")}đ · ${a.nguon_quy || "chưa ghi quỹ"} · HĐ ${a.hoa_don} · ${a.noi_dung}`, link_anh: anh || null, canh_bao: dau,
+      ngay: chuanNgay(ngay) || ngay, co_anh: coAnh && !!anh,
       ...(thamChieu.length ? { tham_chieu: `bộ đọc luật thấy khác ở: ${thamChieu.join(", ")} — đọc lại tin; ghi sai thì sua_khoan` } : {}) };
   }
 
@@ -127,10 +130,11 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     if (r.loi) return tuChoi(r.loi.replace("xác nhận", "yêu cầu sửa"));
     const sai = kiemGiaTri(a, { batBuoc: false });
     if (sai) return tuChoi(sai);
+    if (a.ngay !== undefined && !chuanNgay(a.ngay)) return tuChoi("ngay phải dạng dd/mm/yyyy (vd 06/10/2026)");
     if ((a.so_tien === undefined) !== (a.loai === undefined)) return tuChoi("sửa số tiền phải kèm cả loai lẫn so_tien");
     const dong = await so.timDong(String(m.id), String(a.chat_id));
     if (!dong) return tuChoi("khoản này chưa ghi sổ (không thấy Mã tin) — dùng ghi_khoan");
-    await so.capNhat(dong, { dienGiai: a.noi_dung, hoaDon: a.hoa_don, nguonQuy: a.nguon_quy, loai: a.loai, amount: a.so_tien,
+    await so.capNhat(dong, { dienGiai: a.noi_dung, hoaDon: a.hoa_don, nguonQuy: a.nguon_quy, loai: a.loai, amount: a.so_tien, ngay: a.ngay === undefined ? undefined : chuanNgay(a.ngay),
       ghiChuThem: `sửa theo ${link(a.chat_id, r.xn.id)}` }, String(a.chat_id));
     return { ok: true, dong };
   }
@@ -175,5 +179,14 @@ export function taoSo({ discord, so, drive, cfg, now = () => Date.now() }) {
     return { moi: moi.sort(xep), dang_cho: dangCho.sort(xep) };
   }
 
-  return { kiemTin, ghiKhoan, suaKhoan, docSo, tinChuaXuLy };
+  // Dịch vụ Zalo (2026-10-08): thư mục chứng từ của khoản vừa có file → bỏ "không có ảnh chứng từ", ghi ngày bổ sung.
+  async function boSungChungTu({ chat_id, message_id, ngay }) {
+    if (!kenhHopLe(chat_id)) return tuChoi("kênh không phải kênh sổ chi phí NP");
+    const dong = await so.timDong(String(message_id), String(chat_id));
+    if (!dong) return tuChoi("không thấy dòng của khoản trong sổ");
+    await so.capNhat(dong, { boGhiChu: "không có ảnh chứng từ", ghiChuThem: `đã bổ sung chứng từ ${ngay}` }, String(chat_id));
+    return { ok: true, dong };
+  }
+
+  return { kiemTin, ghiKhoan, suaKhoan, docSo, tinChuaXuLy, boSungChungTu };
 }

@@ -90,7 +90,7 @@ export function tabCuaKenh(cfg, kenh) {
 }
 
 // cfg: mặc định config.json (bot Discord). nguonTin: thay cho Discord REST (Zalo: dichvu/csdl.mjs nguonTinSoCore, 2026-10-08).
-export async function taoCoreThat({ cfg = null, nguonTin = null } = {}) {
+export async function taoCoreThat({ cfg = null, nguonTin = null, thuMucRong = false } = {}) {
   cfg ??= JSON.parse(readFileSync(join(GOC, "config.json"), "utf8"));
   const books = await import("../books.mjs");
   const drive = await import("../drive.mjs");
@@ -125,8 +125,9 @@ export async function taoCoreThat({ cfg = null, nguonTin = null } = {}) {
       // Cây kế toán (2026-10-06): <folderId> / <tab kênh> / YYYY / MM.YYYY / Có HĐ | Không HĐ | Thu / NN. <diễn giải>
       luuAnh: async ({ msgs, loai, ngay, noiDung, kenh, quy, hoaDon }) => {
         const buffers = await taiAnh(msgs);
-        if (!buffers.length || !folderId) return "";
-        return voiKhoa(KHOA_DRIVE, () => drive.luuChungTu(drive.getDrive(), folderId, { kenh: tab(kenh), quy, loai, hoaDon, dmy: ngay, msgId: msgs[0].id, desc: noiDung, buffers }));
+        // thuMucRong (dịch vụ Zalo, 2026-10-08): khoản chưa có ảnh vẫn tạo thư mục để người gửi tự tải chứng từ; Discord giữ như cũ.
+        if ((!buffers.length && !thuMucRong) || !folderId) return "";
+        return voiKhoa(KHOA_DRIVE, () => drive.luuChungTu(drive.getDrive(), folderId, { kenh: tab(kenh), quy, loai, hoaDon, dmy: ngay, msgId: msgs[0].id, desc: noiDung, buffers, taoRong: thuMucRong }));
       },
     } });
 }
