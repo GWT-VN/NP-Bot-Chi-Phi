@@ -40,7 +40,9 @@ export function taoCongCu({ core, kho, hopThu, canhBao = { bao: () => {} }, nhat
       if (!kq?.ok) return kq;
       const m = kho.lay(a.message_id), anhLoi = (kq.canh_bao || []).some((x) => /ảnh/.test(x));
       bao(String(kq.da_ghi || "").startsWith("khoản này đã có") ? `✅ #${m?.ma} đã có trong sổ`
-        : `✅ #${m?.ma} ${m?.ten || ""} · ${kq.da_ghi}${anhLoi ? " (chưa lưu được ảnh chứng từ — người quản lý kiểm tra)" : ""}`);
+        : `✅ #${m?.ma} ${m?.ten || ""} · ${kq.da_ghi}${anhLoi ? " (chưa lưu được ảnh chứng từ — người quản lý kiểm tra)" : ""}`
+          // Zalo không chuyển album cho bot → ảnh khác (vé, hoá đơn…) người gửi tự thêm vào thư mục này (chủ dự án 2026-10-08).
+          + (kq.link_anh ? `\n📎 Thêm chứng từ: ${kq.link_anh}` : ""));
       if (anhLoi) canhBao.bao(`anh_loi:${a.message_id}`, `Khoản #${m?.ma} (nhóm ${chat_id}) đã ghi sổ nhưng chưa lưu được ảnh chứng từ lên Drive — kiểm tra.`);
       return { ...kq, da_bao_nhom: "dịch vụ đã tự báo ✅ trong nhóm — KHÔNG trả lời thêm" };
     }, loiSo));

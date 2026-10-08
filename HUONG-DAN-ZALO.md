@@ -11,7 +11,9 @@ Bot ghi vào file "Sổ chi phí New Projects". **Bot chỉ thấy tin có gắn
 Nên có: **thu/chi** · **số tiền** · **hoá đơn đỏ** (không ghi = không có) · **quỹ** (GWT - TK Công ty / GWT - Tiền mặt /
 Thuỷ / Cá nhân ứng). Thiếu gì bot hỏi lại.
 
-- **Nhiều bill** → gửi nhiều tin, **mỗi tin 1 ảnh** (gửi album thì bot không nhận được ảnh).
+- **Một khoản nhiều ảnh** (vé + hoá đơn…) → gửi **1 ảnh** kèm nội dung; bot ghi xong trả lời ✅ kèm **link thư mục chứng từ**,
+  ảnh còn lại tải vào link đó. Gửi album thì bot **không nhận được ảnh** (Zalo không chuyển album cho bot).
+- **Nhiều khoản** → mỗi khoản một tin riêng.
 - **Đừng gửi ảnh rồi mới gõ chữ ở tin sau** — ảnh không có @ thì bot không thấy.
 - **Bot hỏi lại** → trả lời bắt đầu bằng **@Bot GWT CP** ("@Bot GWT CP đúng", "@Bot GWT CP quỹ tiền mặt"). Bot đang hỏi bạn
   nhiều khoản thì ghi thêm **#số** khoản: "@Bot GWT CP #5 đúng". Chỉ chính người gửi khoản trả lời mới tính.

@@ -10,10 +10,10 @@ import { taoSo } from "./so-core.mjs";
 
 const A = "gA", B = "gB";
 let t0 = 1791300000000;
-async function dung({ loiSheet = false } = {}) {
+async function dung({ loiSheet = false, linkAnh = "" } = {}) {
   const db = moCsdl(":memory:"), kho = taoKhoTin(db, { tenBot: "Bot GWT CP" }), ghi = []
   const core = taoSo({ cfg: { channels: { [A]: { name: "A", tab: "A" }, [B]: { name: "B", tab: "B" } }, quy: [{ ten: "GWT - Tiền mặt", goiTat: ["tiền mặt"] }] },
-    discord: nguonTinSoCore(kho), drive: { luuAnh: async () => "" },
+    discord: nguonTinSoCore(kho), drive: { luuAnh: async () => linkAnh },
     so: { loadProcessed: async () => new Set(ghi.flatMap((x) => x.msgIds)), timDong: async () => null,
       commit: async (x) => { if (loiSheet) throw new Error("Sheets 503"); ghi.push(x) } } })
   const hopThu = taoHopThu({ db, kho, api: { guiChu: async () => [{ message_id: "b", date: Date.now() }] } })
@@ -97,4 +97,18 @@ test("[C1] việc của An không ghi / sửa / bỏ hỏi khoản của Bình c
     const ok = await goi(c2, "ghi_khoan", { message_id: binh.id, xac_nhan_message_id: tl.id, ...CHI })
     assert.equal(ok.loi, false, ok.chu); assert.equal(t.ghi.length, 1)
   } finally { await t.dong() }
+})
+
+// Chủ dự án 2026-10-08: Zalo không chuyển album cho bot → mỗi khoản gửi 1 ảnh; ✅ kèm link thư mục chứng từ để ai cần thì tự
+// thêm ảnh (vé, hoá đơn khác) thẳng vào thư mục — link trong sổ trỏ cùng thư mục nên sổ thấy đủ.
+test("ghi_khoan lưu được ảnh → tin ✅ kèm dòng link thư mục chứng từ; không có link thì không có dòng đó", async () => {
+  const t = await dung({ linkAnh: "https://drive.google.com/drive/folders/F1" }); try {
+    const k = t.tin(A, "@Bot GWT CP chi 50k taxi tiền mặt"), c = await t.noi(t.phien(k))
+    assert.equal((await goi(c, "ghi_khoan", { message_id: k.id, ...CHI })).loi, false)
+    assert.match(t.gui()[0].noi_dung, /^✅ #1 Quỳnh Mai · CHI 50\.000đ[^\n]*\n📎 Thêm chứng từ: https:\/\/drive\.google\.com\/drive\/folders\/F1$/)
+  } finally { await t.dong() }
+  const h = await dung(); try {
+    const k = h.tin(A, "@Bot GWT CP chi 50k taxi tiền mặt"), c = await h.noi(h.phien(k))
+    await goi(c, "ghi_khoan", { message_id: k.id, ...CHI }); assert.doesNotMatch(h.gui()[0].noi_dung, /📎/)
+  } finally { await h.dong() }
 })

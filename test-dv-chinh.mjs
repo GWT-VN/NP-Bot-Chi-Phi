@@ -83,7 +83,7 @@ test("node dichvu/chinh.mjs --kiem-tra in tình trạng dạng JSON (không cầ
 // text_styles). Thay bằng tin mẫu do bot gửi, phần cú pháp in nghiêng + chữ nhỏ, trưởng nhóm ghim.
 test("tinMau: khuôn Thu/Chi - Số tiền - Nội dung - Tên quỹ + ví dụ in nghiêng chữ nhỏ đúng vị trí (UTF-16, có emoji); quỹ bỏ 'GWT - '", () => {
   const m = tinMau({ zalo: { tenBot: "Bot GWT CP" }, quy: [{ ten: "GWT - TK Công ty" }, { ten: "GWT - Tiền mặt" }, { ten: "Thuỷ" }] })
-  assert.equal(m.text, "📌 Báo chi phí: 1 ảnh bill, chú thích bắt đầu bằng tag @Bot GWT CP\nThu/Chi - Số tiền - Nội dung - Tên quỹ\nVD: Chi - 50k - Nước khách - Tiền mặt\nQuỹ: TK Công ty · Tiền mặt · Thuỷ")
+  assert.equal(m.text, "📌 Báo chi phí: 1 ảnh bill, chú thích bắt đầu bằng tag @Bot GWT CP\nThu/Chi - Số tiền - Nội dung - Tên quỹ\nVD: Chi - 50k - Nước khách - Tiền mặt\nQuỹ: TK Công ty · Tiền mặt · Thuỷ\nNhiều ảnh: gửi 1 ảnh, ảnh còn lại thêm vào link bot gửi kèm ✅ (Zalo không chuyển album cho bot)")
   assert.deepEqual(m.text_styles.map((s) => [m.text.slice(s.start, s.start + s.len), s.st]),
     [["Thu/Chi - Số tiền - Nội dung - Tên quỹ", ["i", "f_13"]], ["VD: Chi - 50k - Nước khách - Tiền mặt", ["i", "f_13"]]])
 })

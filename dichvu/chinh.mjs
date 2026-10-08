@@ -103,7 +103,8 @@ export function tomTat(db, now = Date.now(), daKhai = []) {
 export function tinMau(cfg) {
   const mau = ["Thu/Chi - Số tiền - Nội dung - Tên quỹ", "VD: Chi - 50k - Nước khách - Tiền mặt"];
   const quy = (cfg.quy || []).map((q) => q.ten.replace(/^GWT - /, "")).join(" · ");
-  const text = [`📌 Báo chi phí: 1 ảnh bill, chú thích bắt đầu bằng tag @${cfg.zalo?.tenBot || "Bot"}`, ...mau, ...(quy ? [`Quỹ: ${quy}`] : [])].join("\n");
+  const text = [`📌 Báo chi phí: 1 ảnh bill, chú thích bắt đầu bằng tag @${cfg.zalo?.tenBot || "Bot"}`, ...mau, ...(quy ? [`Quỹ: ${quy}`] : []),
+    "Nhiều ảnh: gửi 1 ảnh, ảnh còn lại thêm vào link bot gửi kèm ✅ (Zalo không chuyển album cho bot)"].join("\n");
   return { text, text_styles: mau.map((d) => ({ start: text.indexOf(d), len: d.length, st: ["i", "f_13"] })) }; // chỉ số JS = UTF-16 như Zalo
 }
 
