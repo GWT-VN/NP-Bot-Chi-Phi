@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node test-parser.mjs && node test-books.mjs && node test-drive.mjs && node test-setup.mjs && node test-loi.mjs && node test-luat.mjs && node test-so-core.mjs && node test-mcp.mjs && node test-auth.mjs && node test-cauhinh.mjs && node test-zalo-kho.mjs && node test-zalo-api.mjs && node test-zalo-server.mjs && node test-zalo-nhom.mjs && node test-khoa.mjs && node test-dv-csdl.mjs && node test-dv-hop-thu.mjs && node test-dv-zalo.mjs && node test-dv-claude.mjs && node --test bot/hooks/chan-discord.test.mjs"
+    "test": "node test-parser.mjs && node test-books.mjs && node test-drive.mjs && node test-setup.mjs && node test-loi.mjs && node test-luat.mjs && node test-so-core.mjs && node test-mcp.mjs && node test-auth.mjs && node test-cauhinh.mjs && node test-zalo-kho.mjs && node test-zalo-api.mjs && node test-zalo-server.mjs && node test-zalo-nhom.mjs && node test-khoa.mjs && node test-dv-csdl.mjs && node test-dv-hop-thu.mjs && node test-dv-zalo.mjs && node test-dv-claude.mjs && node test-dv-cong-cu.mjs && node --test bot/hooks/chan-discord.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
