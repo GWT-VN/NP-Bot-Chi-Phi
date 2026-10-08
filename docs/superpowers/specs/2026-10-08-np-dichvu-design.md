@@ -3,6 +3,10 @@
 Thay phần **chạy** của `2026-10-07-np-bot-zalo-design.md`: channel Claude Code, tmux, watchdog, script bấm hộp thoại, kho
 JSONL. Phần nghiệp vụ của bản đó vẫn giữ: quy định gửi, 15 tình huống, luật hiểu trả lời, đo thật Zalo.
 
+> **Rút gọn theo ponytail (2026-10-08, chủ dự án cài ponytail):** giữ nguyên mọi tính năng đã duyệt, bỏ phần thừa —
+> 7 file thay 15 (bảng "Thành phần" dưới đây đã gộp), 4 bảng thay 6 (`canh_bao`, `nhom_la` chỉ là mốc giờ → bảng `moc`),
+> bỏ `zalo/nhom.mjs` (lệnh `node dichvu/chinh.mjs --kiem-tra` hiện nhóm chưa khai).
+
 ## Mục tiêu
 
 - Chạy **lâu dài, không cần người canh**: tự bật lại khi chết; khởi động lại không mất tin; không có chỗ nào phải "đoán màn hình".
@@ -36,7 +40,7 @@ JSONL. Phần nghiệp vụ của bản đó vẫn giữ: quy định gửi, 15 
 
 ```
 Zalo ──getUpdates──▶ adapter Zalo ──▶ CSDL SQLite ──▶ hàng đợi việc ──▶ worker (1 việc/lúc) ──▶ claude -p --bare
-                      tải ảnh ngay     tin·viec·gui·canh_bao                                        │ MCP HTTP + token việc
+                      tải ảnh ngay     tin·viec·gui·moc                                             │ MCP HTTP + token việc
                                                          cổng công cụ (127.0.0.1) ◀─────────────────┘
                                                           kiem_tin · ghi_khoan · sua_khoan · doc_so · tra_loi
                                                                 │ chạy TRONG dịch vụ
@@ -48,24 +52,17 @@ Zalo ──getUpdates──▶ adapter Zalo ──▶ CSDL SQLite ──▶ hàn
 
 | File | Việc duy nhất |
 |---|---|
-| `chinh.mjs` | Điểm vào: đọc cấu hình + bí mật, giữ cổng (chỉ một bản chạy), bật các vòng: nhận Zalo, worker, hộp thư, bảo trì. Nhận SIGTERM thì tắt gọn. |
-| `csdl.mjs` | Mở SQLite (`node:sqlite`, WAL, khoá ngoại), nâng phiên bản cấu trúc, các hàm đọc/ghi 4 bảng. Gồm **luật hiểu trả lời** (chuyển từ `zalo/kho.mjs`). |
-| `zalo.mjs` | Adapter Zalo: lọc + chuẩn hoá cập nhật, lưu tin + việc trong một giao dịch, tải ảnh (kiểm `content-type` ảnh). |
-| `nguon-tin.mjs` | Adapter "dáng tin Discord" cho so-core, đọc từ CSDL: `layTin`, `layTinKenh`, `react`, `unreact`, `link`. |
-| `ngu-canh.mjs` | Dựng gói ngữ cảnh cho một việc (hàm thuần). |
-| `claude.mjs` | Chạy `claude -p` (đường dẫn chương trình truyền vào được, để test dùng chương trình giả), giới hạn thời gian, phân loại kết quả. |
+| `csdl.mjs` | Mở SQLite (`node:sqlite`, WAL, khoá ngoại), nâng phiên bản cấu trúc, bảng `tin` + **luật hiểu trả lời** (chuyển từ `zalo/kho.mjs`), mốc giờ (`moc`), và adapter "dáng tin Discord" cho so-core (`layTin`, `layTinKenh`, `react`, `unreact`, `link`). |
+| `zalo.mjs` | Adapter Zalo: lọc + chuẩn hoá cập nhật, lưu tin + việc trong một giao dịch, tải ảnh (kiểm `content-type` ảnh), ghi nhóm chưa khai vào `moc`. |
+| `hop-thu.mjs` | Hộp thư gửi (thứ tự, thử lại, ghi tin bot, `dang_hoi` khi câu hỏi đã gửi được) + cảnh báo (chống lặp 30 phút qua `moc`, kiểm định kỳ). |
+| `claude.mjs` | Dựng lệnh `claude -p`, chạy (chương trình truyền vào được, để test dùng claude giả), giới hạn thời gian, phân loại kết quả. |
 | `cong-cu.mjs` | Server MCP Streamable HTTP trên `127.0.0.1:<cổng>`: kiểm token → biết việc → biết nhóm. 5 công cụ. |
-| `hang-doi.mjs` | Worker: lấy việc, gọi Claude, xếp lịch thử lại / `that_bai`, gửi "Đã nhận #N" khi Claude im lặng. |
-| `hop-thu.mjs` | Gửi từ hộp thư theo thứ tự, thử lại, ghi tin bot, chuyển khoản sang `dang_hoi` khi câu hỏi đã gửi được. |
-| `canh-bao.mjs` | Luật cảnh báo + chống báo lặp 30 phút → hộp thư (nhóm vận hành). |
-| `bao-tri.mjs` | Sao lưu CSDL hằng ngày (`VACUUM INTO`, giữ 14), dọn ảnh và nhật ký quá 30 ngày, nhắc token Claude sắp hết hạn. |
-| `nhat-ky.mjs` | Nhật ký JSON từng dòng (chỉ mã, không nội dung tin, không bí mật). |
-| `kiem-tra.mjs` | Lệnh xem tình trạng (đọc CSDL + nhật ký). |
+| `hang-doi.mjs` | Gói ngữ cảnh + worker: lấy việc, gọi Claude, xếp lịch thử lại / `that_bai`, gửi "Đã nhận #N" khi Claude im lặng. |
+| `chinh.mjs` | Điểm vào + cấu hình/bí mật/thư mục, nhật ký JSON, bảo trì (sao lưu `VACUUM INTO` giữ 14, dọn ảnh/nhật ký quá 30 ngày), lệnh `--kiem-tra`, giữ cổng (một bản chạy), các vòng lặp, tắt gọn khi SIGTERM. |
 | `loi-dan.md` | Lời dặn hệ thống cho Claude (từ `bot-zalo/CLAUDE.md`, bỏ phần channel). |
 
 Dùng lại không đổi: `so-core.mjs`, `books.mjs`, `drive.mjs`, `luat.mjs`, `lib/khoa.mjs` (tạm), `zalo/api.mjs`, `setup.mjs`.
-Bỏ: `mcp/npzalo.mjs`, `zalo/kho.mjs` (luật chuyển sang `csdl.mjs`), `bot-zalo/bot-settings.json`, `mac/*-zalo.sh`,
-`mac/chon-canh-bao.sh`. `zalo/nhom.mjs` đọc nhóm chưa khai từ CSDL thay cho `bo-qua.jsonl`.
+Bỏ: `mcp/npzalo.mjs`, `zalo/kho.mjs`, `zalo/nhom.mjs`, `bot-zalo/`, `mac/*-zalo.sh`, `mac/chon-canh-bao.sh`.
 
 ## CSDL (`~/Bots/np-dichvu/np.sqlite`)
 
@@ -83,10 +80,9 @@ viec(id INTEGER PRIMARY KEY, tin_id TEXT UNIQUE REFERENCES tin(id),
      trang_thai TEXT,                                 -- cho | dang_chay | xong | that_bai
      so_lan INTEGER, sau_luc INTEGER, loi_cuoi TEXT, ket_qua TEXT, tao_luc INTEGER, xong_luc INTEGER)
 gui(id INTEGER PRIMARY KEY, chat_id TEXT, thu_tu INTEGER, noi_dung TEXT,
-    hoi_ve TEXT REFERENCES tin(id), viec_id INTEGER REFERENCES viec(id), loai TEXT,  -- tra_loi | da_ghi | canh_bao | da_nhan
+    hoi_ve TEXT REFERENCES tin(id), viec_id INTEGER REFERENCES viec(id), loai TEXT,  -- tra_loi | da_ghi | canh_bao | da_nhan | that_bai
     trang_thai TEXT, so_lan INTEGER, sau_luc INTEGER, msg_goc TEXT, loi_cuoi TEXT, tao_luc INTEGER)
-canh_bao(khoa TEXT PRIMARY KEY, lan_cuoi INTEGER, so_lan INTEGER)
-nhom_la(chat_id TEXT PRIMARY KEY, lan_cuoi INTEGER, nguoi TEXT, vi_du TEXT, so_tin INTEGER)
+moc(khoa TEXT PRIMARY KEY, luc INTEGER, ghi_chu TEXT)   -- nhan_zalo_ok · claude_ok · canh_bao:<khoá> · nhom_la:<chat_id> (ghi_chu: người, ví dụ)
 phien_ban(so INTEGER)
 ```
 
@@ -109,7 +105,7 @@ phien_ban(so INTEGER)
      - sự kiện không phải `message.text/image.received`;
      - tin riêng;
      - tin từ nhóm vận hành;
-     - nhóm chưa khai: ghi `nhom_la`.
+     - nhóm chưa khai: ghi `moc` `nhom_la:<chat_id>`.
    - Trong **một giao dịch**: lưu tin (trùng `msg_goc` thì bỏ), áp luật hiểu trả lời, tạo việc `cho`. Rồi tải ảnh về `anh/<id>.jpg`, cập nhật `anh_tt`.
    - Một cập nhật hỏng không làm mất các cập nhật khác cùng lượt.
 2. **Worker:** lấy việc `cho` cũ nhất có `sau_luc ≤ bây giờ` và ảnh đã xong (`anh_tt ≠ cho_tai`) → `dang_chay` → gọi Claude.
@@ -166,7 +162,7 @@ cwd: ~/Bots/np-dichvu/chay (trống) · env: CLAUDE_CODE_OAUTH_TOKEN, PATH, HOME
   - ghi Sheet/Drive lỗi, hoặc ghi xong mà chưa lưu được ảnh;
   - việc chờ quá 15 phút;
   - tin gửi `that_bai`.
-  Chưa khai `nhomVanHanh` thì chỉ ghi nhật ký và lệnh `kiem-tra` hiện cảnh báo.
+  Chưa khai `nhomVanHanh` thì chỉ ghi nhật ký và lệnh `--kiem-tra` hiện cảnh báo.
 - **Cập nhật:** `git pull && npm ci && launchctl kickstart -k gui/$(id -u)/com.gwt.np.dichvu`.
 
 ## Kiểm thử
