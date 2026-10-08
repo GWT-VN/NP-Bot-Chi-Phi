@@ -64,10 +64,12 @@ async function discordGoi(method, path, { khong404 = false } = {}) {
 }
 const laAnh = (a) => (a.content_type || "").startsWith("image/") || /\.(jpe?g|png|webp|gif)$/i.test(a.filename || "");
 
-async function taiAnh(msgs) {
+export async function taiAnh(msgs) {
   const out = [];
   for (const m of msgs) for (const a of (m.attachments || []).filter(laAnh).slice(0, 5)) {
     try {
+      // Dịch vụ np-dichvu đã tải ảnh về máy lúc nhận tin (link Zalo có thể hết hạn) → đọc tệp, không gọi mạng.
+      if (a.tep) { const buffer = readFileSync(a.tep); if (buffer.length <= 20_000_000) out.push({ buffer, mime: a.content_type || "image/jpeg", name: a.filename || `anh-${m.id}.jpg` }); continue }
       const r = await fetch(a.url, { signal: AbortSignal.timeout(20_000) });
       if (!r.ok) continue;
       const buffer = Buffer.from(await r.arrayBuffer());

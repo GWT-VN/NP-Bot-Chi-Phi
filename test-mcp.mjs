@@ -73,3 +73,12 @@ test("lưu chứng từ Drive đi qua khoá liên tiến trình dùng chung (KHO
   const nguon = (await import("node:fs")).readFileSync(new URL("./mcp/npso.mjs", import.meta.url), "utf8")
   assert.match(nguon, /voiKhoa\(KHOA_DRIVE, \(\) => drive\.luuChungTu\(/)
 })
+
+// np-dichvu (2026-10-08): ảnh đã được dịch vụ tải về máy lúc nhận tin → taiAnh đọc tệp, KHÔNG gọi mạng (link Zalo có thể hết hạn).
+test("taiAnh: tệp đính kèm có `tep` → đọc tệp trên máy, không fetch", async () => {
+  const { taiAnh } = await import("./mcp/npso.mjs")
+  const { mkdtempSync, writeFileSync } = await import("node:fs"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path")
+  const f = join(mkdtempSync(join(tmpdir(), "anh-")), "a.jpg"); writeFileSync(f, Buffer.from([1, 2, 3]))
+  const kq = await taiAnh([{ id: "1", attachments: [{ url: "https://khong-goi-duoc.invalid/x", tep: f, content_type: "image/jpeg", filename: "a.jpg" }] }])
+  assert.equal(kq.length, 1); assert.deepEqual([...kq[0].buffer], [1, 2, 3]); assert.equal(kq[0].mime, "image/jpeg")
+})
