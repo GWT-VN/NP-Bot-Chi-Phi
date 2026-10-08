@@ -76,7 +76,7 @@ test("tomTat (--kiem-tra): việc/gửi theo trạng thái, việc quá hạn, c
 test("node dichvu/chinh.mjs --kiem-tra in tình trạng dạng JSON (không cần bí mật)", () => {
   const r = spawnSync(process.execPath, ["dichvu/chinh.mjs", "--kiem-tra"], { cwd: fileURLToPath(new URL(".", import.meta.url)), env: { ...process.env, NP_DICHVU_DIR: tam() }, encoding: "utf8" })
   assert.equal(r.status, 0, r.stderr)
-  assert.deepEqual(Object.keys(JSON.parse(r.stdout)), ["viec", "gui", "viec_qua_han_phut", "nhan_zalo_cach_phut", "claude_ok_cach_phut", "nhom_chua_khai", "canh_bao_gan_day"])
+  assert.deepEqual(Object.keys(JSON.parse(r.stdout)), ["viec", "gui", "viec_qua_han_phut", "nhan_zalo_cach_phut", "claude_ok_cach_phut", "nhom_chua_khai", "canh_bao_gan_day", "chung_tu_thieu"])
 })
 
 // Chủ dự án 2026-10-08: muốn ô nhập hiện sẵn cú pháp mờ — Zalo Bot API không có (sendMessage chỉ chat_id/text/parse_mode/

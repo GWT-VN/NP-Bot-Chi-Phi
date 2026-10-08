@@ -14,10 +14,11 @@ import { taoHopThu, taoCanhBao } from "./hop-thu.mjs";
 import { lenhClaude, chayClaude } from "./claude.mjs";
 import { taoCongCu } from "./cong-cu.mjs";
 import { taoHangDoi } from "./hang-doi.mjs";
+import { taoChungTu } from "./chung-tu.mjs";
 import { taoCoreThat } from "../mcp/npso.mjs";
 import { taoApi } from "../zalo/api.mjs";
 
-export const MAC_DINH_DICH_VU = { cong: 8790, model: "claude-sonnet-5-5", maxTurns: 12, thoiGianToiDaGiay: 240 };
+export const MAC_DINH_DICH_VU = { cong: 8790, model: "claude-sonnet-5-5", maxTurns: 12, thoiGianToiDaGiay: 240, gioNhacChungTu: "20:00" };
 const ngayVN = (t) => new Date(t).toLocaleDateString("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" });
 
 /** File KEY=VALUE (bỏ dòng trống / '#'). Thiếu khoá bắt buộc → lỗi nêu tên khoá, không in giá trị. */
@@ -95,6 +96,7 @@ export function tomTat(db, now = Date.now(), daKhai = []) {
     nhan_zalo_cach_phut: phut(layMoc(db, "nhan_zalo_ok")), claude_ok_cach_phut: phut(layMoc(db, "claude_ok")),
     nhom_chua_khai: moc("nhom_la:").filter((r) => !daKhai.includes(r.khoa.slice("nhom_la:".length))).map((r) => ({ chat_id: r.khoa.slice("nhom_la:".length), lan_cuoi_phut: phut(r.luc), ...JSON.parse(r.ghi_chu || "{}") })),
     canh_bao_gan_day: moc("canh_bao:").slice(0, 10).map((r) => ({ khoa: r.khoa.slice("canh_bao:".length), cach_phut: phut(r.luc) })),
+    chung_tu_thieu: db.prepare("SELECT COUNT(*) AS n FROM chung_tu WHERE co_file=0").get().n,
   };
 }
 
@@ -109,7 +111,9 @@ export function tinMau(cfg) {
 }
 
 export async function taoDichVu({ cfgTat, biMat, thuMuc, api, loiDan, chuongTrinhClaude = "claude", taiFn = fetch, now = Date.now,
-  taoCore = (cfg, nguonTin) => taoCoreThat({ cfg, nguonTin }) }) {
+  // Drive nạp lười (googleapis nặng; test truyền coFile giả). Dịch vụ Zalo: khoản không ảnh vẫn có thư mục (thuMucRong).
+  coFile = async (id) => { const d = await import("../drive.mjs"); return d.thuMucCoFile(d.getDrive(), id) },
+  taoCore = (cfg, nguonTin) => taoCoreThat({ cfg, nguonTin, thuMucRong: true }) }) {
   const cfg = cauHinhDichVu(cfgTat);
   for (const d of [thuMuc.anh, thuMuc.chay, thuMuc.logs, thuMuc.saoLuu]) mkdirSync(d, { recursive: true });
   const db = moCsdl(thuMuc.csdl);
@@ -119,7 +123,8 @@ export async function taoDichVu({ cfgTat, biMat, thuMuc, api, loiDan, chuongTrin
   let canhBao = null;
   const hopThu = taoHopThu({ db, kho, api, nhatKy, baoLoi: (k, s) => canhBao.bao(k, s), now });
   canhBao = taoCanhBao({ db, hopThu, nhomVanHanh: cfg.nhomVanHanh, nhatKy, now });
-  const congCu = taoCongCu({ core, kho, hopThu, canhBao, nhatKy });
+  const chungTu = taoChungTu({ db, hopThu, core, coFile, nhom: cfg.channels, gioNhac: cfg.dichvu.gioNhacChungTu, now, nhatKy });
+  const congCu = taoCongCu({ core, kho, hopThu, canhBao, chungTu, nhatKy });
   const adapter = taoAdapterZalo({ db, kho, nhom: cfg.channels, nhomVanHanh: cfg.nhomVanHanh, thuMucAnh: thuMuc.anh, taiFn, nhatKy, now });
   const ac = new AbortController();
   let cong = null;
@@ -145,7 +150,7 @@ export async function taoDichVu({ cfgTat, biMat, thuMuc, api, loiDan, chuongTrin
     }
   };
   return {
-    db, kho,
+    db, kho, chungTu,
     async batDau({ cong: c = cfg.dichvu.cong } = {}) {
       cong = await congCu.nghe(c); // bản thứ hai: EADDRINUSE → main thoát
       hangDoi.khoiPhuc();
@@ -163,7 +168,12 @@ export async function taoDichVu({ cfgTat, biMat, thuMuc, api, loiDan, chuongTrin
       }, 5000);
       vong.push(lap("viec", hangDoi.chayMot, 1000));
       vong.push(lap("gui", hopThu.guiMot, 500));
-      vong.push(lap("bao_tri", async () => { baoTri.saoLuu(); baoTri.donCu(); canhBao.kiemDinhKy({ tokenNgayTao: biMat.CLAUDE_TOKEN_NGAY_TAO }); return false }, 600_000));
+      // Bảo trì 10 phút/lần: sao lưu, dọn, cảnh báo, quét chứng từ bổ sung, rồi nhắc tối (lượt đầu từ giờ nhắc trở đi).
+      vong.push(lap("bao_tri", async () => {
+        baoTri.saoLuu(); baoTri.donCu(); canhBao.kiemDinhKy({ tokenNgayTao: biMat.CLAUDE_TOKEN_NGAY_TAO });
+        await chungTu.quet(); chungTu.nhacToi();
+        return false;
+      }, 600_000));
       nhatKy({ khoi_dong: true, cong });
       return cong;
     },

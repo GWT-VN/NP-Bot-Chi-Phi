@@ -16,7 +16,7 @@ const anh = (caption) => ({ event_name: "message.image.received", message: { mes
 const chu = (text, from = nguoi) => ({ event_name: "message.text.received", message: { message_id: `z${++t0}`, date: t0, chat: { id: NHOM, chat_type: "GROUP" }, from, text } });
 async function cho(dk, ms = 20000) { const het = Date.now() + ms; while (Date.now() < het) { if (await dk()) return; await new Promise((r) => setTimeout(r, 50)) } throw new Error(`quá giờ chờ: ${dk}`) }
 
-async function dung({ now = Date.now, cham = 0 } = {}) {
+async function dung({ now = Date.now, cham = 0, coFile = async () => false } = {}) {
   const goc = mkdtempSync(join(tmpdir(), "dv-e2e-"))
   const thuMuc = { goc, csdl: join(goc, "np.sqlite"), anh: join(goc, "anh"), saoLuu: join(goc, "sao-luu"), chay: join(goc, "chay"), logs: join(goc, "logs"), cauHinhClaude: join(goc, "claude-cfg") }
   const zalo = { vao: [], gui: [], dangGui: 0,
@@ -26,9 +26,9 @@ async function dung({ now = Date.now, cham = 0 } = {}) {
   const cfgTat = { channels: { "1511655994252460113": { name: "chi-phí", tab: "Chi phí chung" } },
     quy: [{ ten: "GWT - Tiền mặt", goiTat: ["tiền mặt"] }, { ten: "Cá nhân ứng", goiTat: ["cá nhân ứng"] }],
     zalo: { tenBot: "Bot GWT CP", groups: { [NHOM]: { name: "Chi tiêu đoàn TQ", tab: "Đoàn" } }, nhomVanHanh: OPS }, dichvu: { thoiGianToiDaGiay: 30 } }
-  const dv = await taoDichVu({ cfgTat, biMat: { CLAUDE_CODE_OAUTH_TOKEN: "gia" }, thuMuc, api: zalo, loiDan: "lời dặn thử", chuongTrinhClaude: CLAUDE_GIA, now,
+  const dv = await taoDichVu({ cfgTat, biMat: { CLAUDE_CODE_OAUTH_TOKEN: "gia" }, thuMuc, api: zalo, loiDan: "lời dặn thử", chuongTrinhClaude: CLAUDE_GIA, now, coFile,
     taiFn: async () => ({ ok: true, status: 200, headers: { get: () => "image/jpeg" }, arrayBuffer: async () => new Uint8Array([255, 216, 255]).buffer }),
-    taoCore: (cfg, nguonTin) => taoSo({ cfg, discord: nguonTin, drive: { luuAnh: async () => "https://drive/x" },
+    taoCore: (cfg, nguonTin) => taoSo({ cfg, discord: nguonTin, drive: { luuAnh: async () => "https://drive.google.com/drive/folders/F1" },
       so: { loadProcessed: async () => new Set(so.flatMap((x) => x.msgIds)), commit: async (x) => so.push(x),
         timDong: async (id) => (so.some((x) => x.rows.length && x.msgIds.includes(id)) ? 2 : null), capNhat: async (dong, f, kenh) => sua.push({ dong, f, kenh }) } }) })
   await dv.batDau({ cong: 0 })
@@ -93,7 +93,7 @@ test("[7] @ không ảnh → nhờ gửi lại → ảnh chú thích '#1' ghi s�
     await cho(() => t.dv.db.prepare("SELECT trang_thai FROM tin WHERE ma=1").get()?.trang_thai === "dang_hoi")
     t.zalo.vao.push(anh("@Bot GWT CP #1 bill đây"))
     await cho(() => t.zalo.gui.some((g) => g.text.startsWith("✅ #1")))
-    assert.equal(t.so[0].rows[0][9], "https://drive/x"); assert.doesNotMatch(t.so[0].rows[0][10], /không có ảnh/)
+    assert.equal(t.so[0].rows[0][9], "https://drive.google.com/drive/folders/F1"); assert.doesNotMatch(t.so[0].rows[0][10], /không có ảnh/)
     t.zalo.vao.push(chu("@Bot GWT CP #1 sai rồi", { id: "u2", display_name: "Bình" }))
     await cho(() => t.zalo.gui.some((g) => g.text === "Đã nhận #3."))
     t.zalo.vao.push(chu("@Bot GWT CP sửa #1 thành 150k"))
@@ -121,4 +121,22 @@ test("[I1] tắt dịch vụ giữa lúc đang gửi → chờ gửi xong + ghi 
       assert.equal(db.prepare("SELECT COUNT(*) AS n FROM tin WHERE la_bot=1").get().n, 1)
     } finally { db.close() }
   } finally { if (!daTat) await t.dv.dung() }
+})
+
+// Spec 2026-10-08-np-chung-tu: khoản không ảnh vẫn ghi → ✅ kèm link → 20:00 nhắc → tải file lên → quét sửa sổ → hôm sau im.
+test("[chứng từ] khoản KHÔNG ảnh → ✅ 'Chưa có chứng từ, tải vào' + link → 20:00 nhắc → có file → sổ 'đã bổ sung', hôm sau không nhắc", async () => {
+  let gio = Date.parse("2026-10-10T19:50:00+07:00"), coFile = false
+  const t = await dung({ now: () => gio, coFile: async () => coFile }); try {
+    t.kichBan([{ loai: "goi", goi: [{ ten: "ghi_khoan", doi: { message_id: "$TIN", loai: "chi", so_tien: 50000, noi_dung: "Taxi", hoa_don: "Không", nguon_quy: "GWT - Tiền mặt" } }] }])
+    t.zalo.vao.push(chu("@Bot GWT CP Chi - 50k - Taxi - Tiền mặt"))
+    await cho(() => t.zalo.gui.some((g) => g.text.startsWith("✅ #1")))
+    assert.match(t.zalo.gui.find((g) => g.text.startsWith("✅")).text,
+      /^✅ #1 Quỳnh Mai · \d{2}\/\d{2} · CHI 50\.000đ[^\n]*\n📎 Chưa có chứng từ, tải vào: https:\/\/drive\.google\.com\/drive\/folders\/F1$/)
+    gio = Date.parse("2026-10-10T20:05:00+07:00")
+    await t.dv.chungTu.quet(); assert.equal(t.dv.chungTu.nhacToi(), 1)
+    await cho(() => t.zalo.gui.some((g) => g.text.startsWith("📎 Còn thiếu chứng từ (1):\n#1 Quỳnh Mai 50.000đ")))
+    coFile = true; assert.equal(await t.dv.chungTu.quet(), 1)
+    assert.match(t.sua.at(-1).f.ghiChuThem, /^đã bổ sung chứng từ 10\/10$/)
+    gio = Date.parse("2026-10-11T20:05:00+07:00"); await t.dv.chungTu.quet(); assert.equal(t.dv.chungTu.nhacToi(), 0)
+  } finally { await t.dv.dung() }
 })
