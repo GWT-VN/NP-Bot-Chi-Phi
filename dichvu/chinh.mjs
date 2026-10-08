@@ -120,6 +120,7 @@ export async function taoDichVu({ cfgTat, biMat, thuMuc, api, loiDan, chuongTrin
   const baoTri = taoBaoTri({ db, thuMuc, now });
   let dung = false;
   const vong = [];
+  let loDangXuLy = Promise.resolve();
   const ngu = async (ms) => { const het = Date.now() + ms; while (!dung && Date.now() < het) await new Promise((r) => setTimeout(r, Math.min(100, het - Date.now()))) };
   const lap = async (ten, buoc, nghi) => {
     while (!dung) {
@@ -135,13 +136,16 @@ export async function taoDichVu({ cfgTat, biMat, thuMuc, api, loiDan, chuongTrin
       hangDoi.khoiPhuc();
       datMoc(db, "nhan_zalo_ok", now()); // Zalo hỏng ngay từ đầu vẫn bị cảnh báo sau 5 phút
       await adapter.taiAnhConDo();
-      vong.push(lap("nhan", async () => {
+      // Vòng long-poll KHÔNG vào `vong`: nó có thể treo tới 30s chờ Zalo, tắt thì không chờ nó (cờ `dung` chặn trước khi chạm
+      // CSDL) — chỉ chờ lô tin đang xử lý dở (`loDangXuLy`).
+      lap("nhan", async () => {
         const ds = await api.layCapNhat();
         if (dung) return true;
-        await xuLyLo(ds, adapter.nhan, nhatKy);
+        loDangXuLy = xuLyLo(ds, adapter.nhan, nhatKy);
+        await loDangXuLy;
         datMoc(db, "nhan_zalo_ok", now());
         return true;
-      }, 5000));
+      }, 5000);
       vong.push(lap("viec", hangDoi.chayMot, 1000));
       vong.push(lap("gui", hopThu.guiMot, 500));
       vong.push(lap("bao_tri", async () => { baoTri.saoLuu(); baoTri.donCu(); canhBao.kiemDinhKy({ tokenNgayTao: biMat.CLAUDE_TOKEN_NGAY_TAO }); return false }, 600_000));
@@ -152,8 +156,9 @@ export async function taoDichVu({ cfgTat, biMat, thuMuc, api, loiDan, chuongTrin
       dung = true;
       ac.abort(); // giết lượt Claude đang chạy; việc về 'cho', lần sau chạy lại
       await congCu.dong();
-      // ponytail: vòng long-poll Zalo có thể còn treo tới 30s — không chờ nó; nó tự thoát vì cờ `dung` trước khi chạm CSDL.
-      await Promise.race([Promise.allSettled(vong), new Promise((r) => setTimeout(r, 2000))]);
+      // Chờ hết lượt việc / lượt gửi / lô tin đang dở rồi mới đóng CSDL — đóng giữa chừng thì tin đã tới nhóm mà CSDL không ghi,
+      // bật lại gửi trùng (review cuối I1). Lâu nhất ≈ 15s (giờ chờ sendMessage); launchd chờ 20s trước khi SIGKILL.
+      await Promise.allSettled([...vong, loDangXuLy]);
       db.close();
     },
   };

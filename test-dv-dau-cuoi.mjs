@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { taoDichVu } from "./dichvu/chinh.mjs";
 import { taoSo } from "./so-core.mjs";
+import { moCsdl } from "./dichvu/csdl.mjs";
 
 const NHOM = "g1", OPS = "ops1", CLAUDE_GIA = fileURLToPath(new URL("./test/claude-gia.mjs", import.meta.url));
 let t0 = 1791300000000;
@@ -15,12 +16,12 @@ const anh = (caption) => ({ event_name: "message.image.received", message: { mes
 const chu = (text, from = nguoi) => ({ event_name: "message.text.received", message: { message_id: `z${++t0}`, date: t0, chat: { id: NHOM, chat_type: "GROUP" }, from, text } });
 async function cho(dk, ms = 20000) { const het = Date.now() + ms; while (Date.now() < het) { if (await dk()) return; await new Promise((r) => setTimeout(r, 50)) } throw new Error(`quá giờ chờ: ${dk}`) }
 
-async function dung({ now = Date.now } = {}) {
+async function dung({ now = Date.now, cham = 0 } = {}) {
   const goc = mkdtempSync(join(tmpdir(), "dv-e2e-"))
   const thuMuc = { goc, csdl: join(goc, "np.sqlite"), anh: join(goc, "anh"), saoLuu: join(goc, "sao-luu"), chay: join(goc, "chay"), logs: join(goc, "logs") }
-  const zalo = { vao: [], gui: [],
+  const zalo = { vao: [], gui: [], dangGui: 0,
     async layCapNhat() { if (this.vao.length) return this.vao.splice(0); await new Promise((r) => setTimeout(r, 30)); return [] },
-    async guiChu(chat_id, text) { this.gui.push({ chat_id, text }); return [{ message_id: `b${this.gui.length}`, date: now() }] } }
+    async guiChu(chat_id, text) { this.dangGui++; if (cham) await new Promise((r) => setTimeout(r, cham)); this.gui.push({ chat_id, text }); return [{ message_id: `b${this.gui.length}`, date: now() }] } }
   const so = [], sua = []
   const cfgTat = { channels: { "1511655994252460113": { name: "chi-phí", tab: "Chi phí chung" } },
     quy: [{ ten: "GWT - Tiền mặt", goiTat: ["tiền mặt"] }, { ten: "Cá nhân ứng", goiTat: ["cá nhân ứng"] }],
@@ -100,4 +101,22 @@ test("[7] @ không ảnh → nhờ gửi lại → ảnh chú thích '#1' ghi s�
     assert.match(nc[1], /TRẢ LỜI CHO khoản #1 · message_id \d+ · kiểu #N/)
     assert.doesNotMatch(nc[2], /TRẢ LỜI CHO/)
   } finally { await t.dv.dung() }
+})
+
+// Review cuối (I1): `launchctl kickstart -k` (cách cập nhật code) giữa lúc đang gửi — phải chờ gửi xong và ghi CSDL rồi mới
+// đóng, không thì bật lại sẽ gửi trùng tin.
+test("[I1] tắt dịch vụ giữa lúc đang gửi → chờ gửi xong + ghi CSDL; bật lại không gửi lặp", async () => {
+  const t = await dung({ cham: 2500 }); let daTat = false
+  try {
+    t.kichBan([{ loai: "im_lang" }])
+    t.zalo.vao.push(chu("@Bot GWT CP note: mai đi sớm"))
+    await cho(() => t.zalo.dangGui > 0)
+    await t.dv.dung(); daTat = true
+    assert.deepEqual(t.zalo.gui.map((g) => g.text), ["Đã nhận #1."])
+    const db = moCsdl(t.thuMuc.csdl)
+    try {
+      assert.deepEqual(db.prepare("SELECT trang_thai FROM gui").all().map((r) => r.trang_thai), ["da_gui"])
+      assert.equal(db.prepare("SELECT COUNT(*) AS n FROM tin WHERE la_bot=1").get().n, 1)
+    } finally { db.close() }
+  } finally { if (!daTat) await t.dv.dung() }
 })

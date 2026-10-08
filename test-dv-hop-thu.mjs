@@ -76,3 +76,15 @@ test("kiểm định kỳ: Zalo im > 5 phút, việc quá hạn > 15 phút, toke
   assert.match(chu, /Không nhận được tin Zalo 16 phút/); assert.match(chu, /Hàng đợi kẹt/); assert.match(chu, /Token Claude còn/)
   assert.equal(conNgayToken("2026-10-08", Date.parse("2026-10-08T12:00:00+07:00")), 364)
 })
+
+// Review cuối (I1): tin đã tới nhóm mà ghi CSDL sau đó lỗi → KHÔNG được coi là gửi hỏng (gửi lại = trùng tin trong nhóm).
+test("[I1] gửi được mà ghi CSDL sau đó lỗi → không gửi lại, đánh dấu đã gửi, báo lỗi", async () => {
+  const t = dung(), loi = [], da = []
+  const khoHong = { ...t.kho, ghiBot: () => { throw new Error("hỏng ghi") } }
+  const ht = taoHopThu({ db: t.db, kho: khoHong, now: t.gio, baoLoi: (k) => loi.push(k),
+    api: { guiChu: async (c, x) => { da.push(x); return [{ message_id: "b1", date: t.gio() }] } } })
+  ht.xepGui({ chat_id: NHOM, noi_dung: "một", loai: "tra_loi" })
+  while (await ht.guiMot());
+  t.troi(LICH_THU_LAI[0]); while (await ht.guiMot());
+  assert.deepEqual(da, ["một"]); assert.equal(dongGui(t.db)[0].trang_thai, "da_gui"); assert.match(loi[0] ?? "", /^gui_ghi_loi:/)
+})

@@ -32,15 +32,9 @@ export function taoHopThu({ db, kho, api, nhatKy = () => {}, baoLoi = () => {}, 
   async function guiMot() {
     const g = tiepTheo();
     if (!g) return false;
-    try {
-      const [r] = await api.guiChu(g.chat_id, g.noi_dung);
-      giaoDich(db, () => {
-        q.daGui.run(r?.message_id == null ? null : String(r.message_id), g.id);
-        kho.ghiBot({ chat_id: g.chat_id, msg_goc: r?.message_id, luc: Number(r?.date) || now(), noi_dung: g.noi_dung, hoi_ve: g.thu_tu === 0 ? g.hoi_ve : null });
-        if (g.hoi_ve && g.thu_tu === 0) kho.danhDauDangHoi(g.hoi_ve);
-      });
-      nhatKy({ gui: g.id, loai: g.loai, ok: true });
-    } catch (e) {
+    let r;
+    try { [r] = await api.guiChu(g.chat_id, g.noi_dung) }
+    catch (e) {
       const lan = g.so_lan + 1, loi = String(e?.message ?? e).slice(0, 300);
       if (lan > lich.length) {
         q.thatBai.run(lan, loi, g.id);
@@ -50,6 +44,21 @@ export function taoHopThu({ db, kho, api, nhatKy = () => {}, baoLoi = () => {}, 
         q.henLai.run(lan, now() + lich[lan - 1], loi, g.id);
         nhatKy({ gui: g.id, loai: g.loai, thu_lai: lan });
       }
+      return true;
+    }
+    const msgGoc = r?.message_id == null ? null : String(r.message_id);
+    // Tin ĐÃ tới nhóm: lỗi ghi CSDL từ đây KHÔNG phải gửi hỏng — vẫn đánh dấu đã gửi (gửi lại = trùng tin) và báo (review cuối I1).
+    try {
+      giaoDich(db, () => {
+        q.daGui.run(msgGoc, g.id);
+        kho.ghiBot({ chat_id: g.chat_id, msg_goc: msgGoc, luc: Number(r?.date) || now(), noi_dung: g.noi_dung, hoi_ve: g.thu_tu === 0 ? g.hoi_ve : null });
+        if (g.hoi_ve && g.thu_tu === 0) kho.danhDauDangHoi(g.hoi_ve);
+      });
+      nhatKy({ gui: g.id, loai: g.loai, ok: true });
+    } catch (e) {
+      try { q.daGui.run(msgGoc, g.id) } catch {}
+      nhatKy({ gui: g.id, loai: g.loai, loi_sau_gui: String(e?.message ?? e).slice(0, 200) });
+      baoLoi(`gui_ghi_loi:${g.id}`, `Đã gửi tin vào nhóm ${g.chat_id} nhưng không ghi được CSDL (${String(e?.message ?? e).slice(0, 100)}) — bot có thể không nhận ra câu trả lời cho tin này.`);
     }
     return true;
   }
