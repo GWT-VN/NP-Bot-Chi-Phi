@@ -2,7 +2,7 @@
 // dựng cây chứng từ Drive (đếm thư mục con rồi +1, liệt kê rồi mới tạo) — ghi cùng lúc thì trùng số "NN." / trùng thư mục.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, utimesSync } from "node:fs";
+import { mkdtempSync, mkdirSync, utimesSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -19,13 +19,15 @@ test("hai việc cùng khoá trong một tiến trình chạy LẦN LƯỢT, kh�
 })
 
 test("khoá giữ được giữa HAI tiến trình (bot Discord + bot Zalo)", async () => {
-  const k = khoaMoi()
+  const k = khoaMoi(), nha = `${k}.nha`
+  // "nha" là TỆP ghi đồng bộ trước khi nhả khoá: stdout qua pipe trên macOS là bất đồng bộ — bên này có thể giành khoá
+  // trước khi đọc được chữ "nha" (đã hỏng 1 lần khi chạy cả bộ test, 2026-10-08) dù khoá đúng.
   const con = spawn(process.execPath, ["--input-type=module", "-e",
-    `const { voiKhoa } = await import(${JSON.stringify(new URL("./lib/khoa.mjs", import.meta.url).href)}); await voiKhoa(${JSON.stringify(k)}, async () => { process.stdout.write("giu\\n"); await new Promise((r) => setTimeout(r, 400)); process.stdout.write("nha\\n") })`])
+    `const { voiKhoa } = await import(${JSON.stringify(new URL("./lib/khoa.mjs", import.meta.url).href)}); const { writeFileSync } = await import("node:fs"); await voiKhoa(${JSON.stringify(k)}, async () => { process.stdout.write("giu\\n"); await new Promise((r) => setTimeout(r, 400)); writeFileSync(${JSON.stringify(nha)}, "") })`])
   let ra = ""; con.stdout.on("data", (d) => { ra += d })
   while (!ra.includes("giu")) await ngu(10)
   const t0 = Date.now()
-  await voiKhoa(k, async () => { assert.ok(ra.includes("nha"), "tiến trình kia còn giữ khoá mà bên này đã vào") })
+  await voiKhoa(k, async () => { assert.ok(existsSync(nha), "tiến trình kia còn giữ khoá mà bên này đã vào") })
   assert.ok(Date.now() - t0 >= 250)
 })
 
