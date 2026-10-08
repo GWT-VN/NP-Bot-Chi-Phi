@@ -61,6 +61,9 @@ test("np-dichvu: lời dặn đủ công cụ + luật an toàn; launchd KeepAli
   const l = doc("./dichvu/loi-dan.md");
   for (const x of ["kiem_tin", "ghi_khoan", "sua_khoan", "doc_so", "tra_loi", "hoi_ve", "bo_hoi", "xac_nhan_message_id", "TRẢ LỜI CHO",
     "suy_ra", "ĐÃ GỬI Ở LẦN CHẠY TRƯỚC", "@Bot GWT CP #", "không xoá", "DỮ LIỆU"]) assert.ok(l.includes(x), x);
+  // Chủ dự án 2026-10-08: câu nhắc trong nhóm đọc thấy dài → một câu ngắn, không markdown (Zalo hiện nguyên **), đuôi nhắc tag ngắn.
+  for (const x of ["KHÔNG dùng markdown", "(nhớ tag @Bot)"]) assert.ok(l.includes(x), x);
+  assert.doesNotMatch(l, /trả lời bắt đầu bằng @Bot GWT CP/, "đuôi nhắc cũ quá dài");
   const s = doc("./mac/cai-dichvu.sh");
   assert.match(s, /com\.gwt\.np\.dichvu/); assert.match(s, /<key>KeepAlive<\/key><true\/>/); assert.match(s, /dichvu\/chinh\.mjs/); assert.match(s, /np-dichvu\.env/);
   assert.doesNotMatch(s.split("\n").filter((l) => !l.trim().startsWith("#")).join("\n"), /tmux/, "dịch vụ không chạy tmux (comment được nhắc)");
