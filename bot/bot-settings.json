@@ -37,6 +37,7 @@
       "Read(//Users/*/Bots/.secrets/**)",
       "Read(//Users/*/.ssh/**)",
       "Read(//Users/*/.claude/channels/discord/**)",
+      "Read(//Users/*/.claude/channels/discord-admin/**)",
       "Read(//Users/*/.claude/.credentials.json)",
       "Read(//Users/*/Bots/gwt-discord-bot/**)",
       "mcp__shopee",

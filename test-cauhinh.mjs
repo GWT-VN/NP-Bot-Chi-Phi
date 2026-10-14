@@ -19,7 +19,8 @@ test("chỉ cho đúng công cụ cần: Discord (không edit), 5 lệnh npso, R
     "mcp__npso__doc_so", "mcp__npso__tin_chua_xu_ly"]) assert.ok(allow.includes(t), `thiếu allow ${t}`);
   assert.ok(allow.some((t) => /^Read\(\/\/Users\/\*\/\.claude\/channels\/discord-np\/inbox\/\*\*\)$/.test(t)));
   for (const t of ["Bash", "Edit", "Write", "WebFetch", "WebSearch", "Agent", "mcp__plugin_discord_discord__edit_message",
-    "Read(**/.env*)", "Read(//Users/*/Bots/.secrets/**)", "Read(//Users/*/.claude/channels/discord/**)"]) assert.ok(deny.includes(t), `thiếu deny ${t}`);
+    "Read(**/.env*)", "Read(//Users/*/Bots/.secrets/**)", "Read(//Users/*/.claude/channels/discord/**)",
+    "Read(//Users/*/.claude/channels/discord-admin/**)"]) assert.ok(deny.includes(t), `thiếu deny ${t}`);
 });
 
 test("start-bot: dontAsk vĩnh viễn, --tools Read, nạp npso, chạy trong bot/, prompt quét bù", () => {
