@@ -169,7 +169,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     }
     if (a.includes("--so-sanh")) { for (const d of soSanh({ bang: bangDoiSoat({ tins, rows, tinThu }), rows })) console.log(d); continue }
     if (a.includes("--ghi-tab")) {
-      const soCot = (await books.docTieuDe(cfg.book.sheetId, n.tab)).length, ten = nhom.length > 1 ? `Đối soát Zalo - ${n.tab}` : "Đối soát Zalo";
+      const soCot = await books.doRongForm(cfg.book.sheetId, n.tab), ten = nhom.length > 1 ? `Đối soát Zalo - ${n.tab}` : "Đối soát Zalo";
       const bang = bangDoiSoat({ tins, rows, tinThu, soCot, tinhKhoanMat: false });
       await books.ghiTabTheoMau(cfg.book.sheetId, { mau: n.tab, title: ten, rows: bang, tieuDeThem: TIEU_DE_THEM, cotThemTu: soCot });
       const dem = {};

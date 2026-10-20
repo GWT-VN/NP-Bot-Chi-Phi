@@ -346,9 +346,12 @@ export async function docSo(sheetId, tab) {
     chi: Number(x[COT.chi]) || 0, ghiChu: x[COT.ghiChu] ?? "", maTin: String(x[COT.maTin] ?? ""), url: x[COT.url] ?? "", hang: x })).filter((d) => d.ngay || d.thu || d.chi);
 }
 
-// Dòng tiêu đề của tab (độ rộng form — tab kênh có thể thêm cột kế toán sau O).
-export async function docTieuDe(sheetId, tab) {
-  return (await sheetsApi().spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!1:1` })).data.values?.[0] || [];
+// Độ rộng FORM của tab = số ô tiêu đề liền nhau từ cột A (tab kênh có thể thêm cột kế toán sau O). Ô tổng ghiTongLoc đặt cách form
+// MỘT ô trống ở dòng 1 nên không bị tính vào form.
+export async function doRongForm(sheetId, tab, { sheets = sheetsApi() } = {}) {
+  const td = (await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!1:1` })).data.values?.[0] || [];
+  const i = td.findIndex((x) => !String(x ?? "").trim());
+  return i < 0 ? td.length : i;
 }
 
 /** Ghi một tab BÁO CÁO theo FORM tab `mau` (đối soát…, chủ dự án 2026-10-20): chưa có thì nhân bản tab mẫu (giữ định dạng, độ rộng,
@@ -370,22 +373,47 @@ export async function ghiTabTheoMau(sheetId, { mau, title, rows, tieuDeThem = []
   return rows.length;
 }
 
-/** Nhân bản tab `mau` thành `title` rồi bật bộ lọc (chủ dự án 2026-10-20: tách chi phí HCM theo đơn vị). `loc`: [{ cot (0-based), chua }]
- *  → chỉ hiện dòng có ô chứa chữ đó (không phân biệt hoa thường, thừa dấu cách vẫn khớp). Ô tổng ở dòng 1 từ cột `cotTong` — dòng 1 không
- *  bao giờ bị lọc ẩn; SUBTOTAL chỉ tính dòng đang hiện. Là BẢN CHỤP lúc chạy: sổ đổi thì xoá tab rồi chạy lại. Đã có tab → không đụng. */
-export async function nhanBanLoc(sheetId, { mau, title, loc, cotTong }, { sheets = sheetsApi(), sep } = {}) {
-  const ds = (await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties(sheetId,title)" })).data.sheets || [];
-  const tim = (t) => ds.find((x) => x.properties?.title === t);
+const CHU_COT = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const gidTab = async (sheets, sheetId, tab) => ((await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties(sheetId,title)" })).data.sheets || [])
+  .find((x) => x.properties?.title === tab)?.properties?.sheetId;
+
+/** Tổng chi THEO LỌC ở dòng 1 của tab (chủ dự án 2026-10-21): SUBTOTAL bỏ qua dòng bị bộ lọc ẩn → lọc gì ra tổng nấy. Đặt cách form
+ *  một cột (doRongForm không tính nó); dòng 1 không bao giờ bị lọc ẩn, không bị sapXepTheoNgay đụng. Cột Chi = H. */
+export async function ghiTongLoc(sheetId, tab, { soCot }, { sheets = sheetsApi(), sep } = {}) {
+  const d = sep ?? await argSepFor(sheetId), c = CHU[COT.chi];
+  await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${tab}'!${CHU_COT[soCot + 1]}1`, valueInputOption: "USER_ENTERED",
+    requestBody: { values: [["Tổng chi (theo lọc):", `=SUBTOTAL(109${d}${c}2:${c})`, "Số khoản:", `=SUBTOTAL(102${d}${c}2:${c})`]] } });
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [{ repeatCell: {
+    range: { sheetId: await gidTab(sheets, sheetId, tab), startRowIndex: 0, endRowIndex: 1, startColumnIndex: soCot + 2, endColumnIndex: soCot + 3 },
+    cell: { userEnteredFormat: { numberFormat: { type: "NUMBER", pattern: "#,##0" } } }, fields: "userEnteredFormat.numberFormat" } }] } });
+}
+
+/** Tab "SỐNG" lọc từ tab sổ `mau` (chủ dự án 2026-10-21: tách HCM / Shopee / GWT / Other, sửa ở sổ thì tab ăn theo): nhân bản tab mẫu
+ *  (form, độ rộng, ô tổng theo lọc ở dòng 1), xoá dữ liệu, A2 = FILTER đọc thẳng tab mẫu với điều kiện "ô cột `cot` CHỨA `chua`"
+ *  (SEARCH — không phân biệt hoa thường, thừa chữ / dấu cách vẫn khớp; QUERY so bằng tuyệt đối thì hụt khoản). Chép định dạng dòng 2 của
+ *  mẫu xuống cả cột để dòng tràn thêm vẫn đúng form; hiện cột URL (O) vì chip Drive ở J qua FILTER chỉ còn chữ; bật nút lọc (tổng theo
+ *  lọc đi theo). Đã có tab → không đụng.
+ *  ponytail: cột Tồn (I) là số dư của SỔ GỐC (FILTER chép giá trị) — tổng của tab xem ở ô tổng theo lọc. */
+export async function taoTabLoc(sheetId, { mau, title, loc, soCot }, { sheets = sheetsApi(), sep } = {}) {
+  const ds = (await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties(sheetId,title,gridProperties.rowCount)" })).data.sheets || [];
+  const tim = (t) => ds.find((x) => x.properties?.title === t)?.properties;
   if (tim(title)) return false;
-  if (!tim(mau)) throw new Error(`không thấy tab mẫu "${mau}"`);
+  const m = tim(mau);
+  if (!m) throw new Error(`không thấy tab mẫu "${mau}"`);
   const r = await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [{ duplicateSheet: {
-    sourceSheetId: tim(mau).properties.sheetId, newSheetName: title, insertSheetIndex: ds.length } }] } });
-  await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [{ setBasicFilter: { filter: {
-    range: { sheetId: r.data.replies[0].duplicateSheet.properties.sheetId },
-    filterSpecs: loc.map(({ cot, chua }) => ({ columnIndex: cot, filterCriteria: { condition: { type: "TEXT_CONTAINS", values: [{ userEnteredValue: chua }] } } })) } } }] } });
-  const d = sep ?? await argSepFor(sheetId), cot = CHU[COT.chi];
-  await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${title}'!${"ABCDEFGHIJKLMNOPQRSTUVWXYZ"[cotTong]}1`, valueInputOption: "USER_ENTERED",
-    requestBody: { values: [["Tổng chi đang lọc:", `=SUBTOTAL(109${d}${cot}2:${cot})`, "Số khoản:", `=SUBTOTAL(102${d}${cot}2:${cot})`]] } });
+    sourceSheetId: m.sheetId, newSheetName: title, insertSheetIndex: ds.length } }] } });
+  const g = r.data.replies[0].duplicateSheet.properties.sheetId, d = sep ?? await argSepFor(sheetId);
+  await sheets.spreadsheets.values.clear({ spreadsheetId: sheetId, range: `'${title}'!A2:Z` });
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [
+    { copyPaste: { source: { sheetId: m.sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: soCot },
+      destination: { sheetId: g, startRowIndex: 1, endRowIndex: m.gridProperties?.rowCount ?? 1000, startColumnIndex: 0, endColumnIndex: soCot }, pasteType: "PASTE_FORMAT" } },
+    { updateDimensionProperties: { range: { sheetId: g, dimension: "COLUMNS", startIndex: COT.url, endIndex: COT.url + 1 }, properties: { hiddenByUser: false }, fields: "hiddenByUser" } },
+    // Nút lọc sẵn, KHÔNG điều kiện: thay bộ lọc nhân bản theo tab mẫu (sổ đang lọc lúc chạy thì tab mới không bị ẩn sẵn dòng).
+    { setBasicFilter: { filter: { range: { sheetId: g } } } },
+  ] } });
+  const dk = loc.map(({ cot, chua }) => `${d} ISNUMBER(SEARCH("${chua}"${d} '${mau}'!${CHU_COT[cot]}2:${CHU_COT[cot]}))`).join("");
+  await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${title}'!A2`, valueInputOption: "USER_ENTERED",
+    requestBody: { values: [[`=IFERROR(FILTER('${mau}'!A2:${CHU_COT[soCot - 1]}${dk})${d} "")`]] } });
   return true;
 }
 

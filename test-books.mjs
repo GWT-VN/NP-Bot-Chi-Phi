@@ -1,6 +1,6 @@
 // Test tầng ghi sổ NP (offline, không mạng) — chạy: node test-books.mjs (exit 0 = đạt).
 import assert from "node:assert/strict";
-import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, yeuCauTheoForm, capNhatDong, timDongTheoMaTin, ghiTabTheoMau, nhanBanLoc, timKhapSheet, commit, sapXepTheoNgay } from "./books.mjs";
+import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, yeuCauTheoForm, capNhatDong, timDongTheoMaTin, ghiTabTheoMau, doRongForm, ghiTongLoc, taoTabLoc, timKhapSheet, commit, sapXepTheoNgay } from "./books.mjs";
 
 let n = 0;
 const t = (ten, fn) => { fn(); n++; console.log("  ✓ " + ten); };
@@ -121,23 +121,47 @@ await ta("ghiTabTheoMau: nhân bản tab mẫu khi chưa có; xoá từ dòng 2;
   await assert.rejects(ghiTabTheoMau("S", { mau: "Không có", title: "Mới", rows: [] }, { sheets: gia(false), sep: ";" }), /tab mẫu "Không có"/);
 });
 
-await ta("nhanBanLoc: nhân bản tab sổ, bật bộ lọc theo cột (chứa chữ), ô tổng SUBTOTAL ở dòng 1; đã có tab → không đụng", async () => {
+// Chủ dự án 2026-10-21: tổng chi theo LỌC (SUBTOTAL) + 4 tab "sống" (HCM, HCM - Shopee/GWT/Other) ăn theo tab sổ bằng FILTER.
+await ta("doRongForm: độ rộng form = tiêu đề liền nhau từ A (ô tổng ở dòng 1 cách một ô trống không tính)", async () => {
+  const tieuDe = [...Array.from({ length: 19 }, (_, i) => `c${i}`), "", "Tổng chi (theo lọc):", 5];
+  const sheets = { spreadsheets: { values: { get: async (x) => { assert.equal(x.range, "'Đoàn'!1:1"); return { data: { values: [tieuDe] } } } } } };
+  assert.equal(await doRongForm("S", "Đoàn", { sheets }), 19);
+  assert.equal(await doRongForm("S", "Đoàn", { sheets: { spreadsheets: { values: { get: async () => ({ data: { values: [["a", "b"]] } }) } } } }), 2);
+});
+
+await ta("ghiTongLoc: dòng 1, cách form một cột: SUBTOTAL(109) tổng chi + SUBTOTAL(102) số khoản, ô tổng định dạng #,##0", async () => {
+  const goi = [];
+  const sheets = { spreadsheets: { get: async () => ({ data: { sheets: [{ properties: { sheetId: 7, title: "Đoàn" } }] } }),
+    batchUpdate: async (x) => { goi.push(x.requestBody.requests) },
+    values: { update: async (x) => { goi.push(["ghi", x.range, x.valueInputOption, x.requestBody.values]) } } } };
+  await ghiTongLoc("S", "Đoàn", { soCot: 19 }, { sheets, sep: ";" });
+  assert.deepEqual(goi, [
+    ["ghi", "'Đoàn'!U1", "USER_ENTERED", [["Tổng chi (theo lọc):", "=SUBTOTAL(109;H2:H)", "Số khoản:", "=SUBTOTAL(102;H2:H)"]]],
+    [{ repeatCell: { range: { sheetId: 7, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 21, endColumnIndex: 22 },
+      cell: { userEnteredFormat: { numberFormat: { type: "NUMBER", pattern: "#,##0" } } }, fields: "userEnteredFormat.numberFormat" } }],
+  ]);
+});
+
+await ta("taoTabLoc: nhân bản tab sổ, xoá dữ liệu, A2 = FILTER chứa chữ (sống theo sổ), chép form dòng 2 xuống cả cột, hiện cột URL; đã có → không đụng", async () => {
   const goi = [];
   const gia = (coSan) => ({ spreadsheets: {
-    get: async () => ({ data: { sheets: [{ properties: { sheetId: 7, title: "Đoàn" } }, ...(coSan ? [{ properties: { sheetId: 9, title: "HCM - GWT" } }] : [])] } }),
-    batchUpdate: async (x) => { const r = x.requestBody.requests[0]; goi.push(r); return { data: { replies: [r.duplicateSheet ? { duplicateSheet: { properties: { sheetId: 42 } } } : {}] } } },
-    values: { update: async (x) => { goi.push(["ghi", x.range, x.valueInputOption, x.requestBody.values]) } } } });
-  assert.equal(await nhanBanLoc("S", { mau: "Đoàn", title: "HCM - GWT", loc: [{ cot: 17, chua: "HCM" }, { cot: 18, chua: "GWT" }], cotTong: 19 }, { sheets: gia(false), sep: ";" }), true);
-  const dk = (chua) => ({ condition: { type: "TEXT_CONTAINS", values: [{ userEnteredValue: chua }] } });
+    get: async () => ({ data: { sheets: [{ properties: { sheetId: 7, title: "Đoàn", gridProperties: { rowCount: 1000 } } }, ...(coSan ? [{ properties: { sheetId: 9, title: "HCM - GWT" } }] : [])] } }),
+    batchUpdate: async (x) => { const r = x.requestBody.requests; goi.push(r); return { data: { replies: [r[0].duplicateSheet ? { duplicateSheet: { properties: { sheetId: 42 } } } : {}] } } },
+    values: { clear: async (x) => { goi.push(["xoa", x.range]) }, update: async (x) => { goi.push(["ghi", x.range, x.valueInputOption, x.requestBody.values]) } } } });
+  assert.equal(await taoTabLoc("S", { mau: "Đoàn", title: "HCM - GWT", loc: [{ cot: 17, chua: "HCM" }, { cot: 18, chua: "GWT" }], soCot: 19 }, { sheets: gia(false), sep: ";" }), true);
   assert.deepEqual(goi, [
-    { duplicateSheet: { sourceSheetId: 7, newSheetName: "HCM - GWT", insertSheetIndex: 1 } },
-    { setBasicFilter: { filter: { range: { sheetId: 42 }, filterSpecs: [{ columnIndex: 17, filterCriteria: dk("HCM") }, { columnIndex: 18, filterCriteria: dk("GWT") }] } } },
-    ["ghi", "'HCM - GWT'!T1", "USER_ENTERED", [["Tổng chi đang lọc:", "=SUBTOTAL(109;H2:H)", "Số khoản:", "=SUBTOTAL(102;H2:H)"]]],
+    [{ duplicateSheet: { sourceSheetId: 7, newSheetName: "HCM - GWT", insertSheetIndex: 1 } }],
+    ["xoa", "'HCM - GWT'!A2:Z"],
+    [{ copyPaste: { source: { sheetId: 7, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 19 },
+        destination: { sheetId: 42, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 0, endColumnIndex: 19 }, pasteType: "PASTE_FORMAT" } },
+      { updateDimensionProperties: { range: { sheetId: 42, dimension: "COLUMNS", startIndex: 14, endIndex: 15 }, properties: { hiddenByUser: false }, fields: "hiddenByUser" } },
+      { setBasicFilter: { filter: { range: { sheetId: 42 } } } }],
+    ["ghi", "'HCM - GWT'!A2", "USER_ENTERED", [[`=IFERROR(FILTER('Đoàn'!A2:S; ISNUMBER(SEARCH("HCM"; 'Đoàn'!R2:R)); ISNUMBER(SEARCH("GWT"; 'Đoàn'!S2:S))); "")`]]],
   ]);
   goi.length = 0;
-  assert.equal(await nhanBanLoc("S", { mau: "Đoàn", title: "HCM - GWT", loc: [], cotTong: 19 }, { sheets: gia(true), sep: ";" }), false);
+  assert.equal(await taoTabLoc("S", { mau: "Đoàn", title: "HCM - GWT", loc: [], soCot: 19 }, { sheets: gia(true), sep: ";" }), false);
   assert.deepEqual(goi, []);
-  await assert.rejects(nhanBanLoc("S", { mau: "Không có", title: "Mới", loc: [], cotTong: 19 }, { sheets: gia(false), sep: ";" }), /tab mẫu "Không có"/);
+  await assert.rejects(taoTabLoc("S", { mau: "Không có", title: "Mới", loc: [], soCot: 19 }, { sheets: gia(false), sep: ";" }), /tab mẫu "Không có"/);
 });
 
 await ta("timKhapSheet: đọc mọi tab (UNFORMATTED), trả dòng có ô trùng mã tin / số tiền (so dạng chữ)", async () => {
