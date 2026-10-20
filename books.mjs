@@ -47,7 +47,7 @@ export function toThang(s) { const i = toISO(s); return `${i.slice(0, 4)}.${i.sl
 // KHÔNG hardcode ";" — đó chỉ là đổi giả định "',' luôn đúng" lấy giả định "';' luôn đúng". Sheet mới
 // Google mặc định en_US; ai tạo sheet mà quên đổi locale là "#ERROR!" quay lại. Bot phải HỎI SHEET.
 // Suy dấu từ dấu thập phân của locale (Intl) thay vì liệt kê danh sách locale — danh sách sẽ mục.
-const ARG_SEP = "\u001F"; // placeholder trong công thức mẫu; commit() thay bằng dấu thật của sheet.
+export const ARG_SEP = "\u001F"; // placeholder trong công thức mẫu; commit() thay bằng dấu thật của sheet.
 export function sepForLocale(locale) {
   const tag = String(locale || "en_US").replace(/_/g, "-");
   let dec = ".";
@@ -354,14 +354,15 @@ export async function docTieuDe(sheetId, tab) {
 
 /** Ghi một tab BÁO CÁO theo FORM tab `mau` (đối soát…, chủ dự án 2026-10-20): chưa có thì nhân bản tab mẫu (giữ định dạng, độ rộng,
  *  cột ẩn), xoá giá trị từ dòng 2 rồi ghi `rows` USER_ENTERED như commit (công thức STT/Tồn chạy, chữ người gõ đã anToan sẵn).
- *  `tieuDeThem` ghi ở dòng 1 từ cột `cotThemTu` (0-based). Không phải tab kênh → không vào tab quỹ. */
+ *  `tieuDeThem` ghi ở dòng 1 từ cột `cotThemTu` (0-based). Không có `mau` → tab trắng. Không phải tab kênh → không vào tab quỹ. */
 export async function ghiTabTheoMau(sheetId, { mau, title, rows, tieuDeThem = [], cotThemTu }, { sheets = sheetsApi(), sep } = {}) {
   const ds = (await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties(sheetId,title)" })).data.sheets || [];
   const tim = (t) => ds.find((x) => x.properties?.title === t);
   if (!tim(title)) {
-    if (!tim(mau)) throw new Error(`không thấy tab mẫu "${mau}"`);
-    await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [{ duplicateSheet: {
-      sourceSheetId: tim(mau).properties.sheetId, newSheetName: title, insertSheetIndex: ds.length } }] } });
+    if (mau && !tim(mau)) throw new Error(`không thấy tab mẫu "${mau}"`);
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [mau
+      ? { duplicateSheet: { sourceSheetId: tim(mau).properties.sheetId, newSheetName: title, insertSheetIndex: ds.length } }
+      : { addSheet: { properties: { title, gridProperties: { frozenRowCount: 1 } } } }] } });
   }
   await sheets.spreadsheets.values.clear({ spreadsheetId: sheetId, range: `'${title}'!A2:Z` });
   await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${title}'!A2`, valueInputOption: "USER_ENTERED",

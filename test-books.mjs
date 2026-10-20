@@ -110,7 +110,7 @@ await ta("ghiTabTheoMau: nhân bản tab mẫu khi chưa có; xoá từ dòng 2;
   const goi = [];
   const gia = (coSan) => ({ spreadsheets: {
     get: async () => ({ data: { sheets: [{ properties: { sheetId: 7, title: "Đoàn" } }, ...(coSan ? [{ properties: { sheetId: 9, title: "Đối soát Zalo" } }] : [])] } }),
-    batchUpdate: async (x) => { goi.push(["nhan_ban", x.requestBody.requests[0].duplicateSheet]); },
+    batchUpdate: async (x) => { const r = x.requestBody.requests[0]; goi.push(r.duplicateSheet ? ["nhan_ban", r.duplicateSheet] : ["tao", r.addSheet]); },
     values: { clear: async (x) => { goi.push(["xoa", x.range]); }, update: async (x) => { goi.push(["ghi", x.range, x.valueInputOption, x.requestBody.values]); } } } });
   const hang = [["=ROW()-1", "=SUM(A\u001FB)", "x", 5]];
   assert.equal(await ghiTabTheoMau("S", { mau: "Đoàn", title: "Đối soát Zalo", rows: hang, tieuDeThem: ["Zalo #", "Tình trạng"], cotThemTu: 15 }, { sheets: gia(false), sep: ";" }), 1);
@@ -124,6 +124,10 @@ await ta("ghiTabTheoMau: nhân bản tab mẫu khi chưa có; xoá từ dòng 2;
   await ghiTabTheoMau("S", { mau: "Đoàn", title: "Đối soát Zalo", rows: hang }, { sheets: gia(true), sep: ";" });
   assert.deepEqual(goi.map((g) => g[0]), ["xoa", "ghi"]);
   await assert.rejects(ghiTabTheoMau("S", { mau: "Không có", title: "Mới", rows: [] }, { sheets: gia(false), sep: ";" }), /tab mẫu "Không có"/);
+  goi.length = 0; // không có mau → tab trắng, cố định dòng tiêu đề (tab HCM theo đơn vị)
+  await ghiTabTheoMau("S", { title: "HCM - GWT", rows: hang, tieuDeThem: ["STT"], cotThemTu: 0 }, { sheets: gia(false), sep: ";" });
+  assert.deepEqual(goi.map((g) => g.slice(0, 2)), [["tao", { properties: { title: "HCM - GWT", gridProperties: { frozenRowCount: 1 } } }],
+    ["xoa", "'HCM - GWT'!A2:Z"], ["ghi", "'HCM - GWT'!A2"], ["ghi", "'HCM - GWT'!A1"]]);
 });
 
 console.log(`\n${n} test đạt`);
