@@ -50,8 +50,9 @@ export const TIEU_DE_THEM = ["Zalo #", "Giờ gửi", "Dòng sổ gốc", "Tình
  *  (STT, Tồn công thức như sổ), M/N và các cột kế toán từ P tới `soCot` chép từ dòng sổ, rồi TIEU_DE_THEM. Mỗi KHOẢN bot đã ghi một
  *  dòng, theo thời gian. Giá trị lấy từ dòng sổ hiện tại; dòng đã mất thì từ tin ✅ bot trả lúc ghi. Tình trạng so dòng sổ với lúc
  *  bot ghi (thấy chỗ ai đó sửa / xoá trên Sheet). Người trong `tinThu` (tin thử) vẫn có dòng nhưng để trống tiền — không cộng vào
- *  tổng, không xét trùng. Tin chưa ghi sổ (đang hỏi, không phải khoản) không vào bảng — xem bản in màn hình. */
-export function bangDoiSoat({ tins, rows, tinThu = [], soCot = SO_COT }) {
+ *  tổng, không xét trùng. `tinhKhoanMat: false` (tab — chủ dự án 2026-10-20): khoản đã bỏ khỏi sổ cũng để trống tiền, tổng tab =
+ *  tổng khoản Zalo đang ở sổ; mặc định (so sánh / ghi lại) giữ số tiền theo tin ✅. Tin chưa ghi sổ (đang hỏi, không phải khoản) không vào bảng — xem bản in màn hình. */
+export function bangDoiSoat({ tins, rows, tinThu = [], soCot = SO_COT, tinhKhoanMat = true }) {
   const theoId = new Map(tins.map((t) => [t.id, t])), dong = new Map(rows.map((r) => [String(r.maTin), r]));
   const goc = (id) => { let t = theoId.get(id); if (t?.la_bot) t = theoId.get(t.tra_loi_cho); return t };
   const botGhi = new Map(); // #N → giá trị bot ghi lúc ✅ (lấy lần đầu)
@@ -73,7 +74,7 @@ export function bangDoiSoat({ tins, rows, tinThu = [], soCot = SO_COT }) {
     const soTien = v.thu || v.chi, thu = tinThu.includes(t.ten), tt = [];
     if (thu) tt.push(`Tin thử — không tính tiền (bot ghi: ${tien(soTien)})`);
     else {
-      if (!r) tt.push("KHÔNG CÒN TRONG SỔ (lấy theo tin ✅ của bot)");
+      if (!r) tt.push(tinhKhoanMat ? "KHÔNG CÒN TRONG SỔ (lấy theo tin ✅ của bot)" : `KHÔNG CÒN TRONG SỔ — không tính tiền (bot ghi: ${tien(soTien)})`);
       else if (b) {
         if (b.quy !== r.nguonQuy) tt.push(`Quỹ đã đổi (bot ghi: ${b.quy})`);
         if (b.tien !== soTien) tt.push(`Số tiền đã đổi (bot ghi: ${tien(b.tien)})`);
@@ -85,7 +86,7 @@ export function bangDoiSoat({ tins, rows, tinThu = [], soCot = SO_COT }) {
       truoc.push({ ten: t.ten, soTien, luc: t.luc, ma: t.ma });
     }
     const h = buildFundRow({ loai: v.thu ? "thu" : "chi", ngay: v.ngay, dienGiai: v.dg, nguoi: v.nguoi, hoaDon: v.hd, nguonQuy: v.quy,
-      amount: thu ? 0 : soTien, link: v.link, ghiChu: r?.ghiChu ?? "", maTin: t.id });
+      amount: thu || (!r && !tinhKhoanMat) ? 0 : soTien, link: v.link, ghiChu: r?.ghiChu ?? "", maTin: t.id });
     if (r) h[COT.daHoan] = r.hang[COT.daHoan] ?? "", h[COT.ngayHoan] = r.hang[COT.ngayHoan] ?? "";
     for (let i = SO_COT; i < soCot; i++) h[i] = anToan(r?.hang[i] ?? "");
     ra.push([...h, `#${t.ma}`, ngayGio(t.luc), r ? r.dong : "", tt.join("; ") || "Khớp"]);
@@ -97,7 +98,10 @@ export function bangDoiSoat({ tins, rows, tinThu = [], soCot = SO_COT }) {
  *  Zalo nào (Discord / nhập tay / mã tin lạ). 4 cột đối soát luôn ở cuối dòng nên đọc bằng .at(-k), không phụ thuộc độ rộng form. */
 export function soSanh({ bang, rows }) {
   const tong = (xs) => xs.reduce((s, x) => s + (Number(x) || 0), 0), khop = new Set(bang.map((h) => h.at(-2)).filter(Boolean));
-  const lech = bang.filter((h) => h.at(-1) !== "Khớp" && !h.at(-1).startsWith("Tin thử")), ngoai = rows.filter((r) => !khop.has(r.dong));
+  const lech = bang.filter((h) => h.at(-1) !== "Khớp" && !h.at(-1).startsWith("Tin thử"));
+  // Dòng không có ngày (dòng tổng gõ tay…) không phải khoản: không cộng vào tổng sổ, liệt kê riêng.
+  const khongNgay = rows.filter((r) => !r.ngay); rows = rows.filter((r) => r.ngay);
+  const ngoai = rows.filter((r) => !khop.has(r.dong));
   const so = (thu, chi) => (thu ? `THU ${tien(thu)}` : `CHI ${tien(chi)}`);
   return [
     `Tổng chi — sổ: ${tien(tong(rows.map((r) => r.chi)))} (${rows.filter((r) => r.chi).length} khoản) · khoản Zalo bot ghi: ${tien(tong(bang.map((h) => h[7])))} (${bang.filter((h) => h[7]).length} khoản)`,
@@ -105,6 +109,7 @@ export function soSanh({ bang, rows }) {
     ...lech.map((h) => `  ${h.at(-4)} ${h[3]} · ${h[1]} · ${so(h[6], h[7])} · ${h[5]} · ${h.at(-2) ? `sổ dòng ${h.at(-2)}` : "không có trong sổ"} → ${h.at(-1)}`),
     `\nDòng sổ KHÔNG từ khoản Zalo (${ngoai.length}) — Discord / nhập tay / mã tin lạ:`,
     ...ngoai.map((r) => `  dòng ${r.dong} · ${r.ngay} · ${r.nguoi} · ${so(r.thu, r.chi)} · ${r.nguonQuy} · "${cat(r.dienGiai, 60)}" · mã tin: ${r.maTin || "trống"}`),
+    ...(khongNgay.length ? [`\nDòng KHÔNG có ngày — không cộng vào tổng sổ (${khongNgay.length}): ${khongNgay.map((r) => `dòng ${r.dong} (${so(r.thu, r.chi)})`).join(", ")}`] : []),
   ];
 }
 
@@ -165,7 +170,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     if (a.includes("--so-sanh")) { for (const d of soSanh({ bang: bangDoiSoat({ tins, rows, tinThu }), rows })) console.log(d); continue }
     if (a.includes("--ghi-tab")) {
       const soCot = (await books.docTieuDe(cfg.book.sheetId, n.tab)).length, ten = nhom.length > 1 ? `Đối soát Zalo - ${n.tab}` : "Đối soát Zalo";
-      const bang = bangDoiSoat({ tins, rows, tinThu, soCot });
+      const bang = bangDoiSoat({ tins, rows, tinThu, soCot, tinhKhoanMat: false });
       await books.ghiTabTheoMau(cfg.book.sheetId, { mau: n.tab, title: ten, rows: bang, tieuDeThem: TIEU_DE_THEM, cotThemTu: soCot });
       const dem = {};
       for (const d of bang) for (const x of d.at(-1).split("; ")) { const k = x.replace(/ \(.*$/, "").replace(/#\d+$/, "#…"); dem[k] = (dem[k] || 0) + 1 }

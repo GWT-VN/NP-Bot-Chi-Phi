@@ -57,6 +57,10 @@ test("bảng đối soát theo form tab kênh: khớp / quỹ đã đổi / khô
   assert.deepEqual([r2[1], r2[2], r2[3], r2[7], r2[9], r2[14], r2[21], r2[22]], ["11/10/2026", "Tiền xe 3 gác", "Trang", 400000, "https://drive.google.com/drive/folders/F2", "https://drive.google.com/drive/folders/F2", "", "KHÔNG CÒN TRONG SỔ (lấy theo tin ✅ của bot)"])
   assert.deepEqual([r3[19], r3[21], r3[22]], ["#3", 42, "Có thể trùng #2"])
   assert.deepEqual([r5[2], r5[6], r5[7], r5[19], r5[22]], ["Vé máy bay", "", "", "#5", "Tin thử — không tính tiền (bot ghi: 14.724.000)"])
+  // Tab (chủ dự án 2026-10-20 "giá đối chiếu bị lệch"): khoản đã bỏ khỏi sổ không cộng tiền — tổng tab = tổng khoản Zalo đang ở sổ.
+  const tab = bangDoiSoat({ tins: [a, ok1, c, ok2, d, ok3, e, thu, ok5], rows, tinThu: ["Dũng"], soCot: 19, tinhKhoanMat: false })
+  assert.deepEqual([tab[1][7], tab[1][22]], ["", "KHÔNG CÒN TRONG SỔ — không tính tiền (bot ghi: 400.000)"])
+  assert.deepEqual([tab[0][7], tab[2][7]], [400000, 400000])
 })
 
 // "Bot có bị off không" (chủ dự án 2026-10-20): đọc nhật ký + viec — khởi động lại, cảnh báo, lỗi vòng gộp, tin nhận trễ / xong chậm / chưa xong.
@@ -85,8 +89,10 @@ test("so sánh với sổ: tổng hai bên, chỉ khoản lệch, dòng sổ ngo
     h(88, "Thuỷ", 44560800, "", "KHÔNG CÒN TRONG SỔ (lấy theo tin ✅ của bot)"), h(7, "Mai", 200000, 3, "Quỹ đã đổi (bot ghi: Cá nhân ứng)")]
   const rows = [{ dong: 2, ngay: "19/10/2026", nguoi: "Mai", nguonQuy: "Thuỷ", thu: 0, chi: 400000, dienGiai: "Xe", maTin: "1" },
     { dong: 3, ngay: "19/10/2026", nguoi: "Mai", nguonQuy: "Thuỷ", thu: 0, chi: 200000, dienGiai: "Nước", maTin: "2" },
-    { dong: 4, ngay: "06/10/2026", nguoi: "Kiều Trang", nguonQuy: "GWT - TK Công ty", thu: 0, chi: 14724000, dienGiai: "Vé máy bay", maTin: "1556858628550692914" }]
+    { dong: 4, ngay: "06/10/2026", nguoi: "Kiều Trang", nguonQuy: "GWT - TK Công ty", thu: 0, chi: 14724000, dienGiai: "Vé máy bay", maTin: "1556858628550692914" },
+    { dong: 5, ngay: "", nguoi: "", nguonQuy: "", thu: 0, chi: 15324000, dienGiai: "", maTin: "" }]
   const s = soSanh({ bang, rows }).join("\n")
+  assert.match(s, /Dòng KHÔNG có ngày — không cộng vào tổng sổ \(1\): dòng 5 \(CHI 15\.324\.000\)/)
   assert.match(s, /sổ: 15\.324\.000 \(3 khoản\) · khoản Zalo bot ghi: 45\.160\.800 \(3 khoản\)/)
   assert.match(s, /LỆCH với sổ \(2\)/); assert.doesNotMatch(s, /#1 |#2 /)
   assert.match(s, /#88 Thuỷ · 19\/10\/2026 · CHI 44\.560\.800 · Thuỷ · không có trong sổ → KHÔNG CÒN/)
