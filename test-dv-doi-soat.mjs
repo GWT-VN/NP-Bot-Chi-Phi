@@ -100,3 +100,12 @@ test("lịch sử sheet: đọc CSV có ngoặc kép, đếm dòng có dữ li�
   const csv = 'STT,Ngày,Diễn giải\r\n1,19/10/2026,"Ăn tối, có ""VAT""\r\nghi chú 2 dòng"\r\n2,19/10/2026,Chi phí thuê xe 8-14/10/26\r\n,,\r\n'
   assert.deepEqual(timTrongCsv(csv, ["THUÊ XE 8-14", "Yatch"]), { soDong: 3, thay: { "THUÊ XE 8-14": 3, Yatch: null } })
 })
+
+// Ghi lại khoản bị bot ghi đè (sự cố 19/10): lấy đúng dòng form A–O từ bảng đối soát (giá trị theo tin ✅), chỉ khoản KHÔNG còn trong sổ.
+import { dongGhiLai } from "./dichvu/doi-soat.mjs";
+test("ghi lại: chỉ #N đã hỏi mà không còn trong sổ, dòng form 15 cột, ghi chú đánh dấu ghi lại", () => {
+  const h = (ma, dong) => { const x = Array(15).fill(""); x[0] = "=ROW()-1"; x[2] = `Khoản ${ma}`; x[7] = 1000; x[11] = `'17900${ma}`; return [...x, `#${ma}`, "19/10/2026 18:51", dong, "…"] }
+  const { ghi, bo } = dongGhiLai({ bang: [h(87, 73), h(88, ""), h(89, ""), h(92, 41)], ma: [88, 89, 92, 99], ghiChu: "Ghi lại 20/10" })
+  assert.deepEqual(ghi.map((r) => [r.length, r[2], r[10], r[11]]), [[15, "Khoản 88", "Ghi lại 20/10", "'1790088"], [15, "Khoản 89", "Ghi lại 20/10", "'1790089"]])
+  assert.deepEqual(bo, ["#92 đang ở sổ dòng 41", "#99 không thấy trong tin bot đã ghi"])
+})

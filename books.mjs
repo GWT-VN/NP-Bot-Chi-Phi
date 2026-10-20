@@ -175,10 +175,6 @@ export async function markRepped(sheetId, entries = []) {
 // values.append chỉ ghi giá trị → dòng mới ra định dạng mặc định, link là URL dài. Người quản lý sổ tự chỉnh form
 // (căn trái, độ rộng, link thành chip Drive) → dòng mới CHÉP ĐỊNH DẠNG của dòng ngay trên, nên đổi form trên Sheet
 // là bot theo luôn, không phải sửa code. Link Drive ghi thành CHIP (hiện tên folder): API đòi chữ "@" + chipRuns.
-export function dongTuRange(r) {
-  const m = /!\$?[A-Z]+\$?(\d+)(?::\$?[A-Z]+\$?(\d+))?$/.exec(String(r || ""));
-  return m ? { dau: Number(m[1]), cuoi: Number(m[2] || m[1]) } : null;
-}
 export function yeuCauTheoForm({ gid, dong, link }) {
   const hang = (i) => ({ sheetId: gid, startRowIndex: i - 1, endRowIndex: i, startColumnIndex: 0, endColumnIndex: SO_COT });
   // Dòng dữ liệu đầu tiên (2) không có dòng mẫu → không chép định dạng (chép từ tiêu đề là ra chữ đậm).
@@ -192,30 +188,33 @@ export function yeuCauTheoForm({ gid, dong, link }) {
 }
 
 // ── commit: ghi 1 sheet (1 tab) + đánh dấu đã xử lý ──────────────────────────
-export async function commit({ sheetId, tab, rows = [], msgIds = [] }) {
-  const sheets = sheetsApi();
+export async function commit({ sheetId, tab, rows = [], msgIds = [] }, { sheets = sheetsApi(), sep } = {}) {
   const written = {};
   if (rows.length) {
     // Thay dấu ngăn tham số theo LOCALE CỦA CHÍNH SHEET NÀY, ngay trước khi ghi: đây là chỗ duy nhất
     // vừa async vừa biết sheetId. Hỏi hỏng (mất quyền / Sheets 5xx) → ném → scanner không ✅, quét lại
     // lượt sau. Thà không ghi còn hơn ghi "#ERROR!" đè lên sổ thật.
-    const localized = localizeRows(rows, await argSepFor(sheetId));
-    const ap = await sheets.spreadsheets.values.append({
-      spreadsheetId: sheetId, range: `${tab}!A1`,
-      valueInputOption: "USER_ENTERED", insertDataOption: "OVERWRITE",
-      requestBody: { values: localized },
+    const localized = localizeRows(rows, sep ?? await argSepFor(sheetId));
+    // Ghi vào dòng NGAY DƯỚI dòng cuối có dữ liệu (B:O — bỏ cột A vì STT là công thức), bằng values.update đúng địa chỉ.
+    // KHÔNG dùng values.append: nó "dò bảng" từ A1 và dừng ở dòng trống đầu tiên giữa sổ — sự cố 19/10/2026: ai đó xoá trắng
+    // dòng 41 (#49), append với OVERWRITE ghi #88 → #89 → #90 → #91 → #92 lần lượt ĐÈ lên dòng 41, mất 4 khoản bot đã ✅.
+    // values.get bỏ dòng trống ở CUỐI nhưng giữ dòng trống ở giữa → length = số thứ tự dòng cuối có dữ liệu.
+    // ponytail: đọc-rồi-ghi không nguyên tử — dịch vụ Zalo chạy từng việc một nên không tự đua; hai tiến trình cùng ghi MỘT tab
+    // trong cùng giây (bot Discord + Zalo) thì cần khoá (lib/khoa.mjs). Lưới tab 1000 dòng: vượt thì thêm appendDimension.
+    const da = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!B:O` });
+    const dau = (da.data.values || []).length + 1;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId, range: `'${tab}'!A${dau}`,
+      valueInputOption: "USER_ENTERED", requestBody: { values: localized },
     });
     written[tab] = rows.length;
     // Định dạng theo form: dòng ĐÃ vào sổ rồi → lỗi ở đây chỉ để lại dòng thô, KHÔNG được ném (ném = bot tưởng chưa ghi,
     // ghi lại thành 2 dòng).
     try {
-      const r = dongTuRange(ap?.data?.updates?.updatedRange);
-      if (r) {
-        const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties(sheetId,title)" });
-        const gid = meta.data.sheets.find((x) => x.properties.title === tab)?.properties?.sheetId;
-        const reqs = gid == null ? [] : rows.flatMap((row, i) => yeuCauTheoForm({ gid, dong: r.dau + i, link: row[COT.link] }));
-        if (reqs.length) await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: reqs } });
-      }
+      const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties(sheetId,title)" });
+      const gid = meta.data.sheets.find((x) => x.properties.title === tab)?.properties?.sheetId;
+      const reqs = gid == null ? [] : rows.flatMap((row, i) => yeuCauTheoForm({ gid, dong: dau + i, link: row[COT.link] }));
+      if (reqs.length) await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: reqs } });
     } catch (e) { written.canhBaoForm = String(e?.message ?? e).slice(0, 120); }
   }
   // Ghi ĐỦ 4 cột vào A:D — KHÔNG append thẳng vào D:D.
@@ -400,6 +399,17 @@ export async function timKhapSheet(sheetId, canTim, { sheets = sheetsApi() } = {
     if (hang.some((o) => can.has(String(o)))) ra.push({ tab: ds[i].properties.title, dong: d + 1, hang });
   }));
   return ra;
+}
+
+// Sắp tab sổ theo NGÀY (cột B) tăng dần, cả dòng (mọi cột, kể cả cột kế toán P..) từ dòng 2 (chủ dự án 2026-10-20: bổ sung khoản
+// bị mất rồi "đặt lại đúng thứ tự ngày tháng"). STT (=ROW()-1), Tồn (INDEX…ROW()) tự tính lại; Mã tin đi theo dòng nên bot vẫn tìm
+// được dòng. Dòng trống / không có ngày (vd dòng tổng gõ tay) xuống cuối → hết chỗ trống giữa sổ.
+export async function sapXepTheoNgay(sheetId, tab, { sheets = sheetsApi() } = {}) {
+  const ds = (await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties(sheetId,title)" })).data.sheets || [];
+  const g = ds.find((x) => x.properties?.title === tab)?.properties?.sheetId;
+  if (g == null) throw new Error(`không thấy tab "${tab}"`);
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [{ sortRange: {
+    range: { sheetId: g, startRowIndex: 1 }, sortSpecs: [{ dimensionIndex: 1, sortOrder: "ASCENDING" }] } }] } });
 }
 
 if (path.resolve(process.argv[1] || "") === fileURLToPath(import.meta.url)) {

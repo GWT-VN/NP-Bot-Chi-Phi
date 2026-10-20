@@ -4,6 +4,7 @@
 // không đụng tab kênh / tab quỹ). Tin không tag bot thì Zalo không gửi cho bot nên không có ở đây.
 //   node dichvu/doi-soat.mjs                              in ra màn hình (trên Mac mini — cần CSDL dịch vụ + đăng nhập Google của bot)
 //   node dichvu/doi-soat.mjs --so-sanh [--tin-thu Dũng] so với sổ: tổng hai bên, khoản lệch, dòng sổ không từ Zalo
+//   node dichvu/doi-soat.mjs --ghi-lai 88,89 [--xac-nhan]  ghi lại khoản ✅ bị mất khỏi sổ rồi sắp tab theo ngày (không --xac-nhan = chỉ xem trước)
 //   node dichvu/doi-soat.mjs --tin 88,89                 chẩn đoán từng khoản: tin gốc, bot trả lời, việc, nhật ký, dòng Sheet khớp
 //   node dichvu/doi-soat.mjs --ghi-tab [--tin-thu Dũng]   ghi tab "Đối soát Zalo" (form như tab kênh; tin thử để trống tiền;
 //                                                         không vào tab quỹ; chạy lại = ghi đè từ dòng 2)
@@ -107,6 +108,19 @@ export function soSanh({ bang, rows }) {
   ];
 }
 
+/** Ghi lại khoản bot đã ✅ mà KHÔNG còn trong sổ (sự cố 19/10: append dò bảng ghi đè dòng 41). Dòng form A–O lấy từ bảng đối soát
+ *  (soCot mặc định = A–O); khoản còn trong sổ hoặc không có tin ✅ thì bỏ, kèm lý do. Không ghi _state: mã tin đã có ở đó. */
+export function dongGhiLai({ bang, ma, ghiChu }) {
+  const ghi = [], bo = [];
+  for (const m of ma) {
+    const h = bang.find((x) => x.at(-4) === `#${m}`);
+    if (!h) bo.push(`#${m} không thấy trong tin bot đã ghi`);
+    else if (h.at(-2)) bo.push(`#${m} đang ở sổ dòng ${h.at(-2)}`);
+    else { const r = h.slice(0, SO_COT); r[COT.ghiChu] = anToan(ghiChu); ghi.push(r) }
+  }
+  return { ghi, bo };
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const GOC = dirname(dirname(fileURLToPath(import.meta.url)));
   const cfg = JSON.parse(readFileSync(join(GOC, "config.json"), "utf8"));
@@ -137,6 +151,17 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       continue;
     }
     const rows = await books.docSo(cfg.book.sheetId, n.tab);
+    if (a.includes("--ghi-lai")) { // xem trước; thêm --xac-nhan mới ghi vào sổ
+      const ma = a[a.indexOf("--ghi-lai") + 1].split(",").map(Number);
+      const { ghi, bo } = dongGhiLai({ bang: bangDoiSoat({ tins, rows }), ma, ghiChu: `Ghi lại ${ngayGio(Date.now()).slice(0, 10)}: dòng gốc bị bot ghi đè (lỗi 19/10/2026)` });
+      for (const x of bo) console.log(`  bỏ qua ${x}`);
+      for (const r of ghi) console.log(`  ${r[1]} · ${r[2]} · ${r[3]} · ${r[5]} · ${tien(r[6] || r[7])}`);
+      if (!a.includes("--xac-nhan")) { console.log(`XEM TRƯỚC ${ghi.length} dòng — chưa ghi. Thêm --xac-nhan để ghi vào tab "${n.tab}" rồi sắp cả tab theo ngày.`); continue }
+      if (ghi.length) await books.commit({ sheetId: cfg.book.sheetId, tab: n.tab, rows: ghi, msgIds: [] });
+      await books.sapXepTheoNgay(cfg.book.sheetId, n.tab); // chủ dự án: bổ sung xong thì đặt lại đúng thứ tự ngày
+      console.log(`đã ghi ${ghi.length} dòng và sắp tab "${n.tab}" theo ngày`);
+      continue;
+    }
     if (a.includes("--so-sanh")) { for (const d of soSanh({ bang: bangDoiSoat({ tins, rows, tinThu }), rows })) console.log(d); continue }
     if (a.includes("--ghi-tab")) {
       const soCot = (await books.docTieuDe(cfg.book.sheetId, n.tab)).length, ten = nhom.length > 1 ? `Đối soát Zalo - ${n.tab}` : "Đối soát Zalo";

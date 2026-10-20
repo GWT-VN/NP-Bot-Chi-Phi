@@ -1,6 +1,6 @@
 // Test tầng ghi sổ NP (offline, không mạng) — chạy: node test-books.mjs (exit 0 = đạt).
 import assert from "node:assert/strict";
-import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, dongTuRange, yeuCauTheoForm, capNhatDong, timDongTheoMaTin, ghiTabTheoMau, nhanBanLoc, timKhapSheet } from "./books.mjs";
+import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, yeuCauTheoForm, capNhatDong, timDongTheoMaTin, ghiTabTheoMau, nhanBanLoc, timKhapSheet, commit, sapXepTheoNgay } from "./books.mjs";
 
 let n = 0;
 const t = (ten, fn) => { fn(); n++; console.log("  ✓ " + ten); };
@@ -51,11 +51,6 @@ t("dòng thu: Đã hoàn ứng để trống kể cả quỹ Cá nhân ứng (th
 });
 
 // Form sổ do NGƯỜI chỉnh trên Sheet (chủ dự án 2026-10-06): dòng mới chép định dạng dòng ngay trên + link chứng từ là chip Drive.
-t("dongTuRange: đọc số dòng từ updatedRange của values.append", () => {
-  assert.deepEqual(dongTuRange("'Chi phí chung'!A3:L3"), { dau: 3, cuoi: 3 });
-  assert.deepEqual(dongTuRange("'Đoàn hoạ sĩ TQ T10-2026'!A12:L13"), { dau: 12, cuoi: 13 });
-  assert.equal(dongTuRange(""), null);
-});
 t("yeuCauTheoForm: dòng 3 → chép định dạng dòng 2 (A:L), cột J thành chip Drive", () => {
   const r = yeuCauTheoForm({ gid: 7, dong: 3, link: "https://drive.google.com/drive/folders/abc" });
   assert.deepEqual(r[0].copyPaste, { source: { sheetId: 7, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 15 },
@@ -154,6 +149,38 @@ await ta("timKhapSheet: đọc mọi tab (UNFORMATTED), trả dòng có ô trùn
     { tab: "Đoàn", dong: 2, hang: [1, "11/10/2026", "Xe", "", "", "", "", 44560800] },
     { tab: "_state", dong: 2, hang: ["2026-10-19T03:00:00Z", "", "", 1791900000000000] },
   ]);
+});
+
+// Sự cố 19/10/2026: values.append (OVERWRITE) dò "cuối bảng" lệch khi giữa sổ có dòng trống (#49 bị xoá trắng ở dòng 41) →
+// #88, #89, #90, #91, #92 lần lượt ghi ĐÈ lên dòng 41, mất 4 khoản. Giờ: ghi vào dòng NGAY DƯỚI dòng cuối có dữ liệu (đọc B:O),
+// bằng values.update đúng địa chỉ — không bao giờ lấp chỗ trống giữa sổ, không bao giờ đè dòng đang có.
+await ta("commit: ghi dưới dòng CUỐI có dữ liệu (bỏ qua dòng trống giữa sổ), không dùng append dò bảng; chép form + _state như cũ", async () => {
+  const goi = [], hang = Array.from({ length: 82 }, (_, i) => (i === 40 ? [] : ["x"])); // dòng 1..82, dòng 41 trống
+  const sheets = { spreadsheets: {
+    get: async () => ({ data: { sheets: [{ properties: { sheetId: 7, title: "Đoàn" } }] } }),
+    batchUpdate: async (x) => { goi.push(["form", x.requestBody.requests.map((r) => Object.keys(r)[0] + ":" + (r.copyPaste?.destination.startRowIndex ?? r.updateCells?.range.startRowIndex))]) },
+    values: {
+      get: async (x) => { goi.push(["doc", x.range]); return { data: { values: hang } } },
+      update: async (x) => { goi.push(["ghi", x.range, x.valueInputOption, x.requestBody.values.length]); return { data: { updatedRange: `'Đoàn'!A83:O84` } } },
+      append: async (x) => { goi.push(["append", x.range]); return { data: {} } } } } };
+  const r1 = buildFundRow({ ngay: "19/10/2026", dienGiai: "Thuê xe", amount: 44560800, link: "https://drive.google.com/drive/folders/a", maTin: "1792410654565000" });
+  const kq = await commit({ sheetId: "S", tab: "Đoàn", rows: [r1, r1], msgIds: ["1792410654565000"] }, { sheets, sep: ";" });
+  assert.deepEqual(kq.written, { "Đoàn": 2 });
+  assert.deepEqual(goi, [
+    ["doc", "'Đoàn'!B:O"],
+    ["ghi", "'Đoàn'!A83", "USER_ENTERED", 2],
+    ["form", ["copyPaste:82", "updateCells:82", "copyPaste:83", "updateCells:83"]],
+    ["append", "_state!A:D"],
+  ]);
+});
+
+await ta("sapXepTheoNgay: sắp cả dòng (mọi cột, từ dòng 2) theo cột B tăng dần — dòng trống / không ngày xuống cuối", async () => {
+  const goi = [];
+  const sheets = { spreadsheets: { get: async () => ({ data: { sheets: [{ properties: { sheetId: 7, title: "Đoàn" } }] } }),
+    batchUpdate: async (x) => { goi.push(x.requestBody.requests) } } };
+  await sapXepTheoNgay("S", "Đoàn", { sheets });
+  assert.deepEqual(goi, [[{ sortRange: { range: { sheetId: 7, startRowIndex: 1 }, sortSpecs: [{ dimensionIndex: 1, sortOrder: "ASCENDING" }] } }]]);
+  await assert.rejects(sapXepTheoNgay("S", "Khác", { sheets }), /không thấy tab "Khác"/);
 });
 
 console.log(`\n${n} test đạt`);
