@@ -70,3 +70,21 @@ test("tab HCM theo đơn vị: QUERY lọc R/S/H, tiêu đề A1:L1, tổng + s�
   assert.deepEqual([t.tieuDeThem[10], h[10], t.tieuDeThem[11], h[11]], ["Tổng chi", "=SUM(G2:G)", "Số khoản", "=COUNT(G2:G)"])
   assert.ok(h.slice(1, 10).every((x) => x === ""), "B2:J2 trống cho QUERY tràn xuống")
 })
+
+// "Bot có bị off không" (chủ dự án 2026-10-20): đọc nhật ký + viec — khởi động lại, cảnh báo, lỗi vòng gộp, tin nhận trễ / xong chậm / chưa xong.
+import { gianDoan } from "./dichvu/gian-doan.mjs";
+test("gián đoạn: liệt kê khởi động lại, cảnh báo, gộp lỗi vòng, chỉ tin chậm (nhận trễ, xong chậm, chưa xong)", () => {
+  const T = Date.parse("2026-10-12T09:00:00+07:00"), ts = (m) => new Date(T + m * 60e3).toISOString()
+  const suKien = [{ ts: ts(0), khoi_dong: true }, { ts: ts(30), canh_bao: "zalo_mat" }, { ts: ts(31), vong: "nhan", loi: "fetch failed" },
+    { ts: ts(40), vong: "nhan", loi: "fetch failed" }, { ts: ts(90), khoi_dong: true }, { ts: ts(91), nhan: "x" }]
+  const v = (ma, gui, nhan, xong, o = {}) => ({ ma, ten: "Mai", luc: T + gui * 60e3, tao_luc: T + nhan * 60e3, xong_luc: xong == null ? null : T + xong * 60e3, so_lan: 1, trang_thai: "xong", loi_cuoi: null, ...o })
+  const ra = gianDoan({ tins: [v(1, 10, 10, 11), v(2, 35, 92, 93), v(3, 95, 95, 120, { so_lan: 3, loi_cuoi: "het_han_muc" }), v(4, 100, 100, null, { trang_thai: "cho" })], suKien })
+  const s = ra.join("\n")
+  assert.match(s, /Khởi động lại \(2\): 12\/10 09:00, 12\/10 10:30/)
+  assert.match(s, /12\/10 09:30 zalo_mat/)
+  assert.match(s, /2× 12\/10 09:31 → 12\/10 09:40 nhan: fetch failed/)
+  assert.match(s, /Tin chậm \(3\/4\)/); assert.doesNotMatch(s, /#1 /)
+  assert.match(s, /#2 Mai gửi 12\/10 09:35 · nhận sau 57′ · xong sau 58′/)
+  assert.match(s, /#3 .* xong sau 25′ · 3 lần · het_han_muc/)
+  assert.match(s, /#4 .* CHƯA XONG \(cho\)/)
+})
