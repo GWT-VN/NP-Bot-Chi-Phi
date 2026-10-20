@@ -93,3 +93,10 @@ test("so sánh với sổ: tổng hai bên, chỉ khoản lệch, dòng sổ ngo
   assert.match(s, /#7 Mai .* sổ dòng 3 → Quỹ đã đổi/)
   assert.match(s, /KHÔNG từ khoản Zalo \(1\)[\s\S]*dòng 4 · 06\/10\/2026 · Kiều Trang · CHI 14\.724\.000 .* mã tin: 1556858628550692914/)
 })
+
+// Lịch sử phiên bản tab sổ (chủ dự án 2026-10-20): CSV từng phiên bản → số dòng + dòng chứa chữ cần tìm (ô có phẩy / xuống dòng trong ngoặc kép).
+import { timTrongCsv } from "./dichvu/lich-su-sheet.mjs";
+test("lịch sử sheet: đọc CSV có ngoặc kép, đếm dòng có dữ liệu, tìm dòng chứa chữ (không phân biệt hoa thường)", () => {
+  const csv = 'STT,Ngày,Diễn giải\r\n1,19/10/2026,"Ăn tối, có ""VAT""\r\nghi chú 2 dòng"\r\n2,19/10/2026,Chi phí thuê xe 8-14/10/26\r\n,,\r\n'
+  assert.deepEqual(timTrongCsv(csv, ["THUÊ XE 8-14", "Yatch"]), { soDong: 3, thay: { "THUÊ XE 8-14": 3, Yatch: null } })
+})
