@@ -26,7 +26,7 @@ test("đối soát: tin có dòng sổ → in dòng sổ; trả lời → '(tr�
 
 // Tab "Đối soát Zalo" (chủ dự án 2026-10-20): mỗi khoản một dòng theo thời gian; giá trị từ sổ, sổ mất thì từ tin ✅ của bot.
 import { bangDoiSoat } from "./dichvu/doi-soat.mjs";
-test("bảng đối soát: khớp / quỹ đã đổi / không còn trong sổ (lấy từ ✅) / chưa ghi / có thể trùng; trả lời gộp vào khoản; bỏ người thử", () => {
+test("bảng đối soát: CHỈ khoản bot đã ghi (không cột tin gốc); khớp / quỹ đã đổi / không còn trong sổ (lấy từ ✅) / có thể trùng; bỏ người thử", () => {
   const T = Date.parse("2026-10-11T17:00:00+07:00"), G = "g"
   let n = 0
   const u = (ma, ten, noi_dung, o = {}) => ({ id: `17915000000${String(++n).padStart(2, "0")}000`, chat_id: G, ma, ten, luc: T + n * 60e3, la_bot: 0, noi_dung, anh_tt: "khong_co", trang_thai: "da_ghi", tra_loi_cho: null, ...o })
@@ -46,12 +46,12 @@ test("bảng đối soát: khớp / quỹ đã đổi / không còn trong sổ (
     { dong: 42, ngay: "11/10/2026", dienGiai: "Tiền xe 3 gác", hoaDon: "Không", nguonQuy: "GWT - Tiền mặt", thu: 0, chi: 400000, ghiChu: "", maTin: d.id },
   ]
   const bang = bangDoiSoat({ tins: [a, ok1, c, ok2, d, ok3, e, hoi, f, thu], rows, boNguoi: ["Dũng"] })
-  assert.deepEqual(bang[0], ["STT", "Zalo #", "Giờ gửi", "Người gửi", "Tin gốc", "Trả lời thêm", "Ngày", "Thu", "Chi", "Nguồn quỹ", "Hoá đơn", "Diễn giải", "Dòng sổ", "Tình trạng", "Ghi chú sổ"])
-  assert.equal(bang.length, 5, "4 khoản (#5 là trả lời của #4, Dũng bị bỏ)")
-  const [, r1, r2, r3, r4] = bang
-  assert.deepEqual([r1[1], r1[9], r1[12], r1[13], r1[14]], [1, "GWT - Tiền mặt", 40, "Quỹ đã đổi (bot ghi: Cá nhân ứng)", "kế toán sửa"])
-  assert.deepEqual([r2[1], r2[6], r2[8], r2[9], r2[11], r2[12], r2[13]], [2, "11/10/2026", 400000, "GWT - Tiền mặt", "Tiền xe 3 gác", "", "KHÔNG CÒN TRONG SỔ (lấy theo tin ✅ của bot)"])
-  assert.deepEqual([r3[1], r3[12], r3[13]], [3, 42, "Có thể trùng #2"])
-  assert.deepEqual([r4[0], r4[1], r4[5], r4[13]], [4, 4, "#5: tiền mặt", "Chưa ghi sổ"])
+  assert.deepEqual(bang[0], ["STT", "Zalo #", "Giờ gửi", "Người gửi", "Ngày", "Thu", "Chi", "Nguồn quỹ", "Hoá đơn", "Diễn giải", "Dòng sổ", "Tình trạng", "Ghi chú sổ"])
+  assert.equal(bang.length, 4, "3 khoản đã ghi (#4 chưa ghi, #5 là trả lời, Dũng bị bỏ)")
+  const [, r1, r2, r3] = bang
+  assert.deepEqual([r1[1], r1[7], r1[10], r1[11], r1[12]], [1, "GWT - Tiền mặt", 40, "Quỹ đã đổi (bot ghi: Cá nhân ứng)", "kế toán sửa"])
+  assert.deepEqual([r2[1], r2[4], r2[6], r2[7], r2[9], r2[10], r2[11]], [2, "11/10/2026", 400000, "GWT - Tiền mặt", "Tiền xe 3 gác", "", "KHÔNG CÒN TRONG SỔ (lấy theo tin ✅ của bot)"])
+  assert.deepEqual([r3[1], r3[10], r3[11]], [3, 42, "Có thể trùng #2"])
+  assert.ok(bang.every((d) => !d.includes("Chi 30k bánh") && !d.includes("tiền mặt")), "không có nguyên văn tin")
   assert.match(r1[2], /^\d{2}\/10\/2026 \d{2}:\d{2}$/)
 })
