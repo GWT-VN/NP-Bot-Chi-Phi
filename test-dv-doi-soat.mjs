@@ -59,18 +59,6 @@ test("bảng đối soát theo form tab kênh: khớp / quỹ đã đổi / khô
   assert.deepEqual([r5[2], r5[6], r5[7], r5[19], r5[22]], ["Vé máy bay", "", "", "#5", "Tin thử — không tính tiền (bot ghi: 14.724.000)"])
 })
 
-// Tab "HCM - <đơn vị>" (chủ dự án 2026-10-20): lọc cột R (Địa điểm) chứa HCM + cột S (Đơn vị), tổng/số khoản ở K/L khớp cột Chi (G) của tab mới.
-import { tabHcm } from "./dichvu/tach-hcm.mjs";
-test("tab HCM theo đơn vị: QUERY lọc R/S/H, tiêu đề A1:L1, tổng + số khoản ở K2/L2 không đè vùng QUERY", () => {
-  const t = tabHcm("Đoàn", "Shopee")
-  assert.equal(t.title, "HCM - Shopee")
-  const [h] = t.rows, q = h[0]
-  assert.match(q, /^=QUERY\('Đoàn'!A2:S\u001F "select A, B, C, D, E, F, H, O, K where upper\(R\) contains 'HCM' and upper\(S\) = 'SHOPEE' and H > 0 order by B/)
-  assert.equal(t.tieuDeThem[6], "Chi"); assert.equal(t.cotThemTu, 0)
-  assert.deepEqual([t.tieuDeThem[10], h[10], t.tieuDeThem[11], h[11]], ["Tổng chi", "=SUM(G2:G)", "Số khoản", "=COUNT(G2:G)"])
-  assert.ok(h.slice(1, 10).every((x) => x === ""), "B2:J2 trống cho QUERY tràn xuống")
-})
-
 // "Bot có bị off không" (chủ dự án 2026-10-20): đọc nhật ký + viec — khởi động lại, cảnh báo, lỗi vòng gộp, tin nhận trễ / xong chậm / chưa xong.
 import { gianDoan } from "./dichvu/gian-doan.mjs";
 test("gián đoạn: liệt kê khởi động lại, cảnh báo, gộp lỗi vòng, chỉ tin chậm (nhận trễ, xong chậm, chưa xong)", () => {

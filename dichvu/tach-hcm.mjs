@@ -1,27 +1,23 @@
 #!/usr/bin/env node
-// Tách chi phí HCM theo đơn vị (chủ dự án 2026-10-20): mỗi đơn vị một tab "HCM - <đơn vị>", công thức QUERY đọc thẳng tab sổ —
-// cột R (Địa điểm) chứa "HCM", cột S (Đơn vị) — nên tự cập nhật khi kế toán điền R/S. Tab báo cáo, không vào tab quỹ; chạy lại = ghi đè.
+// Tách chi phí HCM theo đơn vị (chủ dự án 2026-10-20): mỗi đơn vị một tab "HCM - <đơn vị>" = bản NHÂN BẢN tab sổ + bộ lọc
+// cột R (Địa điểm) chứa "HCM" và cột S (Đơn vị) chứa tên đơn vị; T1..W1 tổng chi / số khoản đang hiện. Bản chụp lúc chạy — sổ đổi
+// thì xoá 3 tab rồi chạy lại (tab đã có thì không đụng). Trước đó in bảng đếm Địa điểm × Đơn vị của sổ để soát giá trị lệch.
 //   node dichvu/tach-hcm.mjs ["tên tab sổ"]     mặc định: tab của nhóm Zalo đầu tiên trong config (trên Mac mini — cần đăng nhập Google của bot)
 import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 import * as books from "../books.mjs";
 
-export const DON_VI = ["Shopee", "GWT", "Other"];
-const COT = ["STT", "Ngày", "Diễn giải", "Người", "Hoá đơn đỏ", "Nguồn quỹ", "Chi", "URL chứng từ", "Ghi chú"]; // A..I của tab mới
+const cfg = JSON.parse(readFileSync(new URL("../config.json", import.meta.url), "utf8"));
+const sheetId = cfg.book.sheetId, so = process.argv[2] ?? Object.values(cfg.zalo.groups)[0].tab;
+const R = 17, S = 18; // Địa điểm, Đơn vị — cột kế toán thêm sau O
 
-export function tabHcm(so, dv) {
-  const S = books.ARG_SEP;
-  const q = `=QUERY('${so}'!A2:S${S} "select A, B, C, D, E, F, H, O, K where upper(R) contains 'HCM' and upper(S) = '${dv.toUpperCase()}' and H > 0 order by B format H '#,##0'"${S} 0)`;
-  // Dòng 2: QUERY ở A2 tràn A..I; J trống; K2 tổng chi, L2 số khoản (cột Chi của tab mới là G).
-  return { title: `HCM - ${dv}`, rows: [[q, ...Array(9).fill(""), "=SUM(G2:G)", "=COUNT(G2:G)"]], tieuDeThem: [...COT, "", "Tổng chi", "Số khoản"], cotThemTu: 0 };
-}
+const dem = new Map(), rows = await books.docSo(sheetId, so);
+for (const r of rows.filter((x) => x.chi)) { const k = `${JSON.stringify(String(r.hang[R] ?? ""))} × ${JSON.stringify(String(r.hang[S] ?? ""))}`; dem.set(k, (dem.get(k) || 0) + 1) }
+console.log(`Sổ "${so}": ${rows.filter((x) => x.chi).length} khoản chi — Địa điểm × Đơn vị:`);
+for (const [k, n] of [...dem].sort((a, b) => b[1] - a[1])) console.log(`  ${k}: ${n}`);
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  const cfg = JSON.parse(readFileSync(new URL("../config.json", import.meta.url), "utf8"));
-  const so = process.argv[2] ?? Object.values(cfg.zalo.groups)[0].tab;
-  for (const dv of DON_VI) {
-    const t = tabHcm(so, dv);
-    await books.ghiTabTheoMau(cfg.book.sheetId, t);
-    console.log(`đã ghi tab "${t.title}" (lọc từ tab "${so}")`);
-  }
+const cotTong = (await books.docTieuDe(sheetId, so)).length;
+for (const dv of ["Shopee", "GWT", "Other"]) {
+  const title = `HCM - ${dv}`;
+  const moi = await books.nhanBanLoc(sheetId, { mau: so, title, loc: [{ cot: R, chua: "HCM" }, { cot: S, chua: dv }], cotTong });
+  console.log(moi ? `đã tạo tab "${title}" (bộ lọc HCM + ${dv})` : `tab "${title}" đã có — không đụng; muốn làm lại thì xoá tab đó rồi chạy lại`);
 }

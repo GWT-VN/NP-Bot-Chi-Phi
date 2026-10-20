@@ -47,7 +47,7 @@ export function toThang(s) { const i = toISO(s); return `${i.slice(0, 4)}.${i.sl
 // KHÔNG hardcode ";" — đó chỉ là đổi giả định "',' luôn đúng" lấy giả định "';' luôn đúng". Sheet mới
 // Google mặc định en_US; ai tạo sheet mà quên đổi locale là "#ERROR!" quay lại. Bot phải HỎI SHEET.
 // Suy dấu từ dấu thập phân của locale (Intl) thay vì liệt kê danh sách locale — danh sách sẽ mục.
-export const ARG_SEP = "\u001F"; // placeholder trong công thức mẫu; commit() thay bằng dấu thật của sheet.
+const ARG_SEP = "\u001F"; // placeholder trong công thức mẫu; commit() thay bằng dấu thật của sheet.
 export function sepForLocale(locale) {
   const tag = String(locale || "en_US").replace(/_/g, "-");
   let dec = ".";
@@ -354,15 +354,14 @@ export async function docTieuDe(sheetId, tab) {
 
 /** Ghi một tab BÁO CÁO theo FORM tab `mau` (đối soát…, chủ dự án 2026-10-20): chưa có thì nhân bản tab mẫu (giữ định dạng, độ rộng,
  *  cột ẩn), xoá giá trị từ dòng 2 rồi ghi `rows` USER_ENTERED như commit (công thức STT/Tồn chạy, chữ người gõ đã anToan sẵn).
- *  `tieuDeThem` ghi ở dòng 1 từ cột `cotThemTu` (0-based). Không có `mau` → tab trắng. Không phải tab kênh → không vào tab quỹ. */
+ *  `tieuDeThem` ghi ở dòng 1 từ cột `cotThemTu` (0-based). Không phải tab kênh → không vào tab quỹ. */
 export async function ghiTabTheoMau(sheetId, { mau, title, rows, tieuDeThem = [], cotThemTu }, { sheets = sheetsApi(), sep } = {}) {
   const ds = (await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties(sheetId,title)" })).data.sheets || [];
   const tim = (t) => ds.find((x) => x.properties?.title === t);
   if (!tim(title)) {
-    if (mau && !tim(mau)) throw new Error(`không thấy tab mẫu "${mau}"`);
-    await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [mau
-      ? { duplicateSheet: { sourceSheetId: tim(mau).properties.sheetId, newSheetName: title, insertSheetIndex: ds.length } }
-      : { addSheet: { properties: { title, gridProperties: { frozenRowCount: 1 } } } }] } });
+    if (!tim(mau)) throw new Error(`không thấy tab mẫu "${mau}"`);
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [{ duplicateSheet: {
+      sourceSheetId: tim(mau).properties.sheetId, newSheetName: title, insertSheetIndex: ds.length } }] } });
   }
   await sheets.spreadsheets.values.clear({ spreadsheetId: sheetId, range: `'${title}'!A2:Z` });
   await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${title}'!A2`, valueInputOption: "USER_ENTERED",
@@ -370,6 +369,25 @@ export async function ghiTabTheoMau(sheetId, { mau, title, rows, tieuDeThem = []
   if (tieuDeThem.length) await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${title}'!${"ABCDEFGHIJKLMNOPQRSTUVWXYZ"[cotThemTu]}1`,
     valueInputOption: "RAW", requestBody: { values: [tieuDeThem] } });
   return rows.length;
+}
+
+/** Nhân bản tab `mau` thành `title` rồi bật bộ lọc (chủ dự án 2026-10-20: tách chi phí HCM theo đơn vị). `loc`: [{ cot (0-based), chua }]
+ *  → chỉ hiện dòng có ô chứa chữ đó (không phân biệt hoa thường, thừa dấu cách vẫn khớp). Ô tổng ở dòng 1 từ cột `cotTong` — dòng 1 không
+ *  bao giờ bị lọc ẩn; SUBTOTAL chỉ tính dòng đang hiện. Là BẢN CHỤP lúc chạy: sổ đổi thì xoá tab rồi chạy lại. Đã có tab → không đụng. */
+export async function nhanBanLoc(sheetId, { mau, title, loc, cotTong }, { sheets = sheetsApi(), sep } = {}) {
+  const ds = (await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties(sheetId,title)" })).data.sheets || [];
+  const tim = (t) => ds.find((x) => x.properties?.title === t);
+  if (tim(title)) return false;
+  if (!tim(mau)) throw new Error(`không thấy tab mẫu "${mau}"`);
+  const r = await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [{ duplicateSheet: {
+    sourceSheetId: tim(mau).properties.sheetId, newSheetName: title, insertSheetIndex: ds.length } }] } });
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [{ setBasicFilter: { filter: {
+    range: { sheetId: r.data.replies[0].duplicateSheet.properties.sheetId },
+    filterSpecs: loc.map(({ cot, chua }) => ({ columnIndex: cot, filterCriteria: { condition: { type: "TEXT_CONTAINS", values: [{ userEnteredValue: chua }] } } })) } } }] } });
+  const d = sep ?? await argSepFor(sheetId), cot = CHU[COT.chi];
+  await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${title}'!${"ABCDEFGHIJKLMNOPQRSTUVWXYZ"[cotTong]}1`, valueInputOption: "USER_ENTERED",
+    requestBody: { values: [["Tổng chi đang lọc:", `=SUBTOTAL(109${d}${cot}2:${cot})`, "Số khoản:", `=SUBTOTAL(102${d}${cot}2:${cot})`]] } });
+  return true;
 }
 
 if (path.resolve(process.argv[1] || "") === fileURLToPath(import.meta.url)) {
