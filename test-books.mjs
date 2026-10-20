@@ -1,6 +1,6 @@
 // Test tầng ghi sổ NP (offline, không mạng) — chạy: node test-books.mjs (exit 0 = đạt).
 import assert from "node:assert/strict";
-import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, dongTuRange, yeuCauTheoForm, capNhatDong, timDongTheoMaTin } from "./books.mjs";
+import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, dongTuRange, yeuCauTheoForm, capNhatDong, timDongTheoMaTin, ghiTabBaoCao } from "./books.mjs";
 
 let n = 0;
 const t = (ten, fn) => { fn(); n++; console.log("  ✓ " + ten); };
@@ -102,6 +102,19 @@ await ta("timDongTheoMaTin đọc giá trị GỐC: ô mã tin đã thành số 
   const sheets = { spreadsheets: { values: { get: async (x) => { req = x; return { data: { values: [["Mã tin"], ["1556858628550692914"], [1791432704193000]] } }; } } } };
   assert.equal(await timDongTheoMaTin("S", "Đoàn", "1791432704193000", { sheets }), 3);
   assert.equal(req.valueRenderOption, "UNFORMATTED_VALUE");
+});
+
+// Tab báo cáo đối soát (2026-10-20): chưa có thì tạo; có rồi thì xoá nội dung cũ rồi ghi lại từ A1, RAW (chữ "=…" không thành công thức).
+await ta("ghiTabBaoCao: tab chưa có → tạo (đóng băng tiêu đề); xoá cũ; ghi RAW từ A1; tab đã có → không tạo lại", async () => {
+  const goi = [];
+  const gia = (coSan) => ({ spreadsheets: { get: async () => ({ data: { sheets: coSan ? [{ properties: { title: "Đối soát Zalo" } }] : [{ properties: { title: "Khác" } }] } }),
+    batchUpdate: async (x) => { goi.push(["tao", x.requestBody.requests[0].addSheet.properties]); },
+    values: { clear: async (x) => { goi.push(["xoa", x.range]); }, update: async (x) => { goi.push(["ghi", x.range, x.valueInputOption, x.requestBody.values]); } } } });
+  assert.equal(await ghiTabBaoCao("S", "Đối soát Zalo", [["STT"], [1]], { sheets: gia(false) }), 2);
+  assert.deepEqual(goi, [["tao", { title: "Đối soát Zalo", gridProperties: { frozenRowCount: 1 } }], ["xoa", "'Đối soát Zalo'!A:Z"], ["ghi", "'Đối soát Zalo'!A1", "RAW", [["STT"], [1]]]]);
+  goi.length = 0;
+  await ghiTabBaoCao("S", "Đối soát Zalo", [["STT"]], { sheets: gia(true) });
+  assert.deepEqual(goi.map((g) => g[0]), ["xoa", "ghi"]);
 });
 
 console.log(`\n${n} test đạt`);

@@ -347,6 +347,18 @@ export async function docSo(sheetId, tab) {
     chi: Number(x[COT.chi]) || 0, ghiChu: x[COT.ghiChu] ?? "", maTin: String(x[COT.maTin] ?? "") })).filter((d) => d.ngay || d.thu || d.chi);
 }
 
+/** Ghi một tab BÁO CÁO (đối soát…): chưa có thì tạo, xoá nội dung cũ rồi ghi lại từ A1. RAW: chữ "=…" trong tin không thành công
+ *  thức, ngày/số giữ nguyên kiểu. Không phải tab kênh → không vào tab quỹ. ponytail: tab mới 1000 dòng — quá thì thêm appendDimension. */
+export async function ghiTabBaoCao(sheetId, title, values, { sheets = sheetsApi() } = {}) {
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties.title" });
+  if (!(meta.data.sheets || []).some((x) => x.properties?.title === title)) {
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [{ addSheet: { properties: { title, gridProperties: { frozenRowCount: 1 } } } }] } });
+  }
+  await sheets.spreadsheets.values.clear({ spreadsheetId: sheetId, range: `'${title}'!A:Z` });
+  await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${title}'!A1`, valueInputOption: "RAW", requestBody: { values } });
+  return values.length;
+}
+
 if (path.resolve(process.argv[1] || "") === fileURLToPath(import.meta.url)) {
   (async () => {
     const [cmd, sheetId] = process.argv.slice(2);
