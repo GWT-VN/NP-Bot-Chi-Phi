@@ -53,8 +53,8 @@ test("bảng đối soát theo form tab kênh: khớp / quỹ đã đổi / khô
   const [r1, r2, r3, r5] = bang
   assert.deepEqual([r1[0], r1[1], r1[2], r1[5], r1[7], r1[10], r1[11], r1[14], r1[17], r1[18]], ["=ROW()-1", "11/10/2026", "Xe", "GWT - Tiền mặt", 400000, "kế toán sửa", `'${a.id}`, hangA[14], "HCM", "GWT"])
   assert.match(r1[8], /^=SUM\(/)
-  assert.deepEqual(r1.slice(19), [1, r1[20], 40, "Quỹ đã đổi (bot ghi: Cá nhân ứng)"]); assert.match(r1[20], /^\d{2}\/10\/2026 \d{2}:\d{2}$/)
+  assert.deepEqual(r1.slice(19), ["#1", r1[20], 40, "Quỹ đã đổi (bot ghi: Cá nhân ứng)"]); assert.match(r1[20], /^\d{2}\/10\/2026 \d{2}:\d{2}$/)
   assert.deepEqual([r2[1], r2[2], r2[3], r2[7], r2[9], r2[14], r2[21], r2[22]], ["11/10/2026", "Tiền xe 3 gác", "Trang", 400000, "https://drive.google.com/drive/folders/F2", "https://drive.google.com/drive/folders/F2", "", "KHÔNG CÒN TRONG SỔ (lấy theo tin ✅ của bot)"])
-  assert.deepEqual([r3[19], r3[21], r3[22]], [3, 42, "Có thể trùng #2"])
-  assert.deepEqual([r5[2], r5[6], r5[7], r5[19], r5[22]], ["Vé máy bay", "", "", 5, "Tin thử — không tính tiền (bot ghi: 14.724.000)"])
+  assert.deepEqual([r3[19], r3[21], r3[22]], ["#3", 42, "Có thể trùng #2"])
+  assert.deepEqual([r5[2], r5[6], r5[7], r5[19], r5[22]], ["Vé máy bay", "", "", "#5", "Tin thử — không tính tiền (bot ghi: 14.724.000)"])
 })

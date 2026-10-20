@@ -38,6 +38,8 @@ export function doiSoat({ tins, rows }) {
 const ngayGio = (luc) => new Date(luc).toLocaleString("en-GB", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).replace(",", "");
 // Tin ✅ của bot: "✅ #12 Quỳnh Mai · 08/10 · CHI 400.000đ · GWT - Tiền mặt · HĐ Không · Xích lô…" (bản đầu 08/10 chưa có ngày).
 const RE_DA_GHI = /^✅ #(\d+) .*? · (?:(\d{2}\/\d{2}) · )?(THU|CHI) ([\d.]+)đ · (.*?) · HĐ (.*?) · ([^\n]*)/;
+// "Zalo #" ghi dạng "#N" (chủ dự án 2026-10-20): Zalo không có link tới từng tin — dán "#N" vào ô tìm trong nhóm ra tin ✅ #N của bot,
+// tin gốc nằm ngay trước đó.
 const RE_LINK = /\n📎 [^\n]*?(https:\/\/\S+)/;
 export const TIEU_DE_THEM = ["Zalo #", "Giờ gửi", "Dòng sổ gốc", "Tình trạng đối soát"];
 
@@ -83,7 +85,7 @@ export function bangDoiSoat({ tins, rows, tinThu = [], soCot = SO_COT }) {
       amount: thu ? 0 : soTien, link: v.link, ghiChu: r?.ghiChu ?? "", maTin: t.id });
     if (r) h[COT.daHoan] = r.hang[COT.daHoan] ?? "", h[COT.ngayHoan] = r.hang[COT.ngayHoan] ?? "";
     for (let i = SO_COT; i < soCot; i++) h[i] = anToan(r?.hang[i] ?? "");
-    ra.push([...h, t.ma, ngayGio(t.luc), r ? r.dong : "", tt.join("; ") || "Khớp"]);
+    ra.push([...h, `#${t.ma}`, ngayGio(t.luc), r ? r.dong : "", tt.join("; ") || "Khớp"]);
   }
   return ra;
 }
