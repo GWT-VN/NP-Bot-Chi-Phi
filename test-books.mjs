@@ -158,6 +158,9 @@ await ta("taoTabLoc: nhân bản tab sổ, xoá dữ liệu, A2 = FILTER chứa 
       { setBasicFilter: { filter: { range: { sheetId: 42 } } } }],
     ["ghi", "'HCM - GWT'!A2", "USER_ENTERED", [[`=IFERROR(FILTER('Đoàn'!A2:S; ISNUMBER(SEARCH("HCM"; 'Đoàn'!R2:R)); ISNUMBER(SEARCH("GWT"; 'Đoàn'!S2:S))); "")`]]],
   ]);
+  goi.length = 0; // tab HCM: xếp theo Đơn vị (cột 19) rồi Ngày (cột 2)
+  await taoTabLoc("S", { mau: "Đoàn", title: "HCM", loc: [{ cot: 17, chua: "HCM" }], soCot: 19, sapXep: [19, 2] }, { sheets: gia(false), sep: ";" });
+  assert.deepEqual(goi.at(-1)[3], [[`=IFERROR(SORT(FILTER('Đoàn'!A2:S; ISNUMBER(SEARCH("HCM"; 'Đoàn'!R2:R))); 19; TRUE; 2; TRUE); "")`]]);
   goi.length = 0;
   assert.equal(await taoTabLoc("S", { mau: "Đoàn", title: "HCM - GWT", loc: [], soCot: 19 }, { sheets: gia(true), sep: ";" }), false);
   assert.deepEqual(goi, []);

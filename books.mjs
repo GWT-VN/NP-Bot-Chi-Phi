@@ -394,7 +394,7 @@ export async function ghiTongLoc(sheetId, tab, { soCot }, { sheets = sheetsApi()
  *  mẫu xuống cả cột để dòng tràn thêm vẫn đúng form; hiện cột URL (O) vì chip Drive ở J qua FILTER chỉ còn chữ; bật nút lọc (tổng theo
  *  lọc đi theo). Đã có tab → không đụng.
  *  ponytail: cột Tồn (I) là số dư của SỔ GỐC (FILTER chép giá trị) — tổng của tab xem ở ô tổng theo lọc. */
-export async function taoTabLoc(sheetId, { mau, title, loc, soCot }, { sheets = sheetsApi(), sep } = {}) {
+export async function taoTabLoc(sheetId, { mau, title, loc, soCot, sapXep = [] }, { sheets = sheetsApi(), sep } = {}) {
   const ds = (await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties(sheetId,title,gridProperties.rowCount)" })).data.sheets || [];
   const tim = (t) => ds.find((x) => x.properties?.title === t)?.properties;
   if (tim(title)) return false;
@@ -412,8 +412,10 @@ export async function taoTabLoc(sheetId, { mau, title, loc, soCot }, { sheets = 
     { setBasicFilter: { filter: { range: { sheetId: g } } } },
   ] } });
   const dk = loc.map(({ cot, chua }) => `${d} ISNUMBER(SEARCH("${chua}"${d} '${mau}'!${CHU_COT[cot]}2:${CHU_COT[cot]}))`).join("");
+  let f = `FILTER('${mau}'!A2:${CHU_COT[soCot - 1]}${dk})`;
+  if (sapXep.length) f = `SORT(${f}${sapXep.map((c) => `${d} ${c}${d} TRUE`).join("")})`; // sapXep: số thứ tự cột (1 = A), tăng dần
   await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${title}'!A2`, valueInputOption: "USER_ENTERED",
-    requestBody: { values: [[`=IFERROR(FILTER('${mau}'!A2:${CHU_COT[soCot - 1]}${dk})${d} "")`]] } });
+    requestBody: { values: [[`=IFERROR(${f}${d} "")`]] } });
   return true;
 }
 
