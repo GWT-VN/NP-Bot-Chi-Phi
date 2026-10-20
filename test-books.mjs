@@ -1,6 +1,6 @@
 // Test tầng ghi sổ NP (offline, không mạng) — chạy: node test-books.mjs (exit 0 = đạt).
 import assert from "node:assert/strict";
-import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, dongTuRange, yeuCauTheoForm, capNhatDong, timDongTheoMaTin, ghiTabTheoMau, nhanBanLoc } from "./books.mjs";
+import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, dongTuRange, yeuCauTheoForm, capNhatDong, timDongTheoMaTin, ghiTabTheoMau, nhanBanLoc, timKhapSheet } from "./books.mjs";
 
 let n = 0;
 const t = (ten, fn) => { fn(); n++; console.log("  ✓ " + ten); };
@@ -143,6 +143,17 @@ await ta("nhanBanLoc: nhân bản tab sổ, bật bộ lọc theo cột (chứa 
   assert.equal(await nhanBanLoc("S", { mau: "Đoàn", title: "HCM - GWT", loc: [], cotTong: 19 }, { sheets: gia(true), sep: ";" }), false);
   assert.deepEqual(goi, []);
   await assert.rejects(nhanBanLoc("S", { mau: "Không có", title: "Mới", loc: [], cotTong: 19 }, { sheets: gia(false), sep: ";" }), /tab mẫu "Không có"/);
+});
+
+await ta("timKhapSheet: đọc mọi tab (UNFORMATTED), trả dòng có ô trùng mã tin / số tiền (so dạng chữ)", async () => {
+  const sheets = { spreadsheets: {
+    get: async () => ({ data: { sheets: [{ properties: { title: "Đoàn" } }, { properties: { title: "_state" } }] } }),
+    values: { batchGet: async (x) => { assert.deepEqual(x.ranges, ["'Đoàn'!A1:Z", "'_state'!A1:Z"]); assert.equal(x.valueRenderOption, "UNFORMATTED_VALUE");
+      return { data: { valueRanges: [{ values: [["STT"], [1, "11/10/2026", "Xe", "", "", "", "", 44560800]] }, { values: [["Thời điểm"], ["2026-10-19T03:00:00Z", "", "", 1791900000000000]] }] } } } } } };
+  assert.deepEqual(await timKhapSheet("S", ["1791900000000000", 44560800], { sheets }), [
+    { tab: "Đoàn", dong: 2, hang: [1, "11/10/2026", "Xe", "", "", "", "", 44560800] },
+    { tab: "_state", dong: 2, hang: ["2026-10-19T03:00:00Z", "", "", 1791900000000000] },
+  ]);
 });
 
 console.log(`\n${n} test đạt`);

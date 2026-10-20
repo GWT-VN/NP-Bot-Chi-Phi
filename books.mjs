@@ -390,6 +390,18 @@ export async function nhanBanLoc(sheetId, { mau, title, loc, cotTong }, { sheets
   return true;
 }
 
+// Tìm khắp mọi tab các dòng có ô trùng một giá trị (mã tin, số tiền) — chẩn đoán "khoản bot đã ✅ mà không thấy trong sổ".
+export async function timKhapSheet(sheetId, canTim, { sheets = sheetsApi() } = {}) {
+  const ds = (await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties.title" })).data.sheets || [];
+  const r = await sheets.spreadsheets.values.batchGet({ spreadsheetId: sheetId, ranges: ds.map((x) => `'${x.properties.title}'!A1:Z`),
+    valueRenderOption: "UNFORMATTED_VALUE", dateTimeRenderOption: "FORMATTED_STRING" });
+  const can = new Set(canTim.map(String)), ra = [];
+  (r.data.valueRanges || []).forEach((vr, i) => (vr.values || []).forEach((hang, d) => {
+    if (hang.some((o) => can.has(String(o)))) ra.push({ tab: ds[i].properties.title, dong: d + 1, hang });
+  }));
+  return ra;
+}
+
 if (path.resolve(process.argv[1] || "") === fileURLToPath(import.meta.url)) {
   (async () => {
     const [cmd, sheetId] = process.argv.slice(2);

@@ -3,9 +3,10 @@
 // người (hoặc Claude) soát số tiền / quỹ / ngày / nội dung. CSDL mở CHỈ ĐỌC; Sheet chỉ đọc, trừ --ghi-tab (chỉ ghi tab báo cáo riêng,
 // không đụng tab kênh / tab quỹ). Tin không tag bot thì Zalo không gửi cho bot nên không có ở đây.
 //   node dichvu/doi-soat.mjs                              in ra màn hình (trên Mac mini — cần CSDL dịch vụ + đăng nhập Google của bot)
+//   node dichvu/doi-soat.mjs --tin 88,89                 chẩn đoán từng khoản: tin gốc, bot trả lời, việc, nhật ký, dòng Sheet khớp
 //   node dichvu/doi-soat.mjs --ghi-tab [--tin-thu Dũng]   ghi tab "Đối soát Zalo" (form như tab kênh; tin thử để trống tiền;
 //                                                         không vào tab quỹ; chạy lại = ghi đè từ dòng 2)
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
@@ -98,6 +99,27 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const nhom = Object.entries(cfg.zalo?.groups || {});
   for (const [ch, n] of nhom) {
     const tins = db.prepare("SELECT * FROM tin WHERE chat_id=? ORDER BY luc, id").all(ch).map((r) => ({ ...r }));
+    if (a.includes("--tin")) { // chẩn đoán từng khoản: tin gốc, bot trả lời, việc, nhật ký, và mọi dòng Sheet có mã tin / số tiền đó
+      const suKien = readdirSync(thuMucDichVu().logs).filter((f) => /^dichvu-.*\.jsonl$/.test(f)).sort()
+        .flatMap((f) => readFileSync(join(thuMucDichVu().logs, f), "utf8").split("\n").flatMap((d) => { try { return [JSON.parse(d)] } catch { return [] } }));
+      const canTim = [];
+      for (const ma of a[a.indexOf("--tin") + 1].split(",").map(Number)) {
+        const t = tins.find((x) => !x.la_bot && x.ma === ma);
+        if (!t) { console.log(`\n#${ma}: không có trong CSDL nhóm "${n.name}"`); continue }
+        console.log(`\n#${ma} ${t.ten} gửi ${ngayGio(t.luc)} · ảnh: ${t.anh_tt} · trạng thái: ${t.trang_thai} · mã ${t.id}\n  "${cat(t.noi_dung, 600)}"`);
+        for (const b of tins.filter((x) => x.la_bot && (x.tra_loi_cho === t.id || x.noi_dung.startsWith(`✅ #${ma} `)))) {
+          console.log(`  bot ${ngayGio(b.luc)}: ${cat(b.noi_dung, 400)}`);
+          const m = RE_DA_GHI.exec(b.noi_dung); if (m) canTim.push(Number(m[4].replaceAll(".", "")));
+        }
+        const v = db.prepare("SELECT * FROM viec WHERE tin_id=?").get(t.id);
+        if (v) console.log(`  việc: ${v.trang_thai} · ${v.so_lan} lần · nhận ${ngayGio(v.tao_luc)} · xong ${v.xong_luc ? ngayGio(v.xong_luc) : "—"}${v.loi_cuoi ? ` · lỗi: ${cat(v.loi_cuoi, 200)}` : ""}`);
+        for (const e of suKien.filter((e) => e.tin === t.id || e.nhan === t.id)) console.log(`  nhật ký ${ngayGio(Date.parse(e.ts))}: ${JSON.stringify(e)}`);
+        canTim.push(t.id);
+      }
+      console.log(`\nSheet — mọi dòng (mọi tab) có mã tin / số tiền trên: ${canTim.join(", ")}`);
+      for (const h of await books.timKhapSheet(cfg.book.sheetId, canTim)) console.log(`  "${h.tab}" dòng ${h.dong}: ${cat(h.hang.slice(0, 15).join(" | "), 260)}`);
+      continue;
+    }
     const rows = await books.docSo(cfg.book.sheetId, n.tab);
     if (a.includes("--ghi-tab")) {
       const soCot = (await books.docTieuDe(cfg.book.sheetId, n.tab)).length, ten = nhom.length > 1 ? `Đối soát Zalo - ${n.tab}` : "Đối soát Zalo";
