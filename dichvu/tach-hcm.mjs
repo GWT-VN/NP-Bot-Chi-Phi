@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Tách chi phí theo địa điểm / đơn vị (chủ dự án 2026-10-21): tab sổ có ô "Tổng chi (theo lọc)" ở dòng 1 (SUBTOTAL — lọc gì ra tổng nấy),
-// và 4 tab SỐNG nhân bản từ tab sổ: "HCM" (cột R Địa điểm chứa HCM, đủ 3 đơn vị, xếp theo Đơn vị rồi Ngày) + "Shopee" / "GWT" /
+// Tách chi phí theo địa điểm / đơn vị (chủ dự án 2026-10-21). KHÔNG GHI GÌ VÀO TAB SỔ GỐC (chủ dự án dặn) — chỉ đọc và nhân bản nó.
+// Tab SỐNG nhân bản từ tab sổ, mỗi tab có ô "Tổng chi (theo lọc)" ở dòng 1 (SUBTOTAL — lọc gì ra tổng nấy): "HCM" (cột R Địa điểm chứa HCM, đủ 3 đơn vị, xếp theo Đơn vị rồi Ngày) + "Shopee" / "GWT" /
 // "Other" (cột S Đơn vị chứa tên đơn vị — MỌI địa điểm) + "Khác - chưa có đơn vị" (cột S không chứa tên nào trong 3 đơn vị, kể cả
 // trống; dòng có ngày) → 3 tab đơn vị + tab này = tổng sổ (trừ khi một ô ghi HAI đơn vị — dòng đó vào 2 tab).
 // Mỗi tab là một hàm FILTER đọc thẳng tab sổ → sửa ở sổ là tab ăn theo, KHÔNG cần chạy lại. Tab đã có thì không đụng (tab bản chụp
@@ -17,15 +17,14 @@ const dem = new Map(), rows = await books.docSo(sheetId, so);
 for (const r of rows.filter((x) => x.chi)) { const k = `${JSON.stringify(String(r.hang[R] ?? ""))} × ${JSON.stringify(String(r.hang[S] ?? ""))}`; dem.set(k, (dem.get(k) || 0) + 1) }
 console.log(`Sổ "${so}": ${rows.filter((x) => x.chi).length} dòng có tiền chi — Địa điểm × Đơn vị:`);
 for (const [k, n] of [...dem].sort((a, b) => b[1] - a[1])) console.log(`  ${k}: ${n}`);
-for (const r of rows.filter((x) => !x.ngay && (x.thu || x.chi))) console.log(`⚠️ dòng ${r.dong} có tiền mà không có ngày (dòng tổng gõ tay?) — ô tổng theo lọc sẽ cộng cả nó, nên xoá dòng này`);
+for (const r of rows.filter((x) => !x.ngay && (x.thu || x.chi))) console.log(`ℹ️ dòng ${r.dong} của sổ có tiền mà không có ngày (dòng tổng gõ tay?) — các tab tách không lấy dòng này`);
 
 const soCot = await books.doRongForm(sheetId, so);
-await books.ghiTongLoc(sheetId, so, { soCot }); // trước khi nhân bản → 4 tab mới có sẵn ô tổng theo lọc của riêng nó
-console.log(`đã ghi ô "Tổng chi (theo lọc)" ở dòng 1 tab "${so}"`);
 const DON_VI = ["Shopee", "GWT", "Other"];
 const tabs = [["HCM", [{ cot: R, chua: "HCM" }], [S + 1, 2]], ...DON_VI.map((dv) => [dv, [{ cot: S, chua: dv }], []]),
   ["Khác - chưa có đơn vị", [...DON_VI.map((dv) => ({ cot: S, khongChua: dv })), { cot: 1, coGiaTri: true }], []]];
 for (const [title, loc, sapXep] of tabs) {
   const moi = await books.taoTabLoc(sheetId, { mau: so, title, loc, soCot, sapXep });
+  if (moi) await books.ghiTongLoc(sheetId, title, { soCot }); // ô tổng theo lọc ghi vào TAB MỚI, không vào sổ gốc
   console.log(moi ? `đã tạo tab "${title}" (tự cập nhật theo sổ)` : `tab "${title}" đã có — không đụng; tab bản chụp cũ thì xoá rồi chạy lại`);
 }

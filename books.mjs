@@ -378,7 +378,8 @@ const gidTab = async (sheets, sheetId, tab) => ((await sheets.spreadsheets.get({
   .find((x) => x.properties?.title === tab)?.properties?.sheetId;
 
 /** Tổng chi THEO LỌC ở dòng 1 của tab (chủ dự án 2026-10-21): SUBTOTAL bỏ qua dòng bị bộ lọc ẩn → lọc gì ra tổng nấy. Đặt cách form
- *  một cột (doRongForm không tính nó); dòng 1 không bao giờ bị lọc ẩn, không bị sapXepTheoNgay đụng. Cột Chi = H. */
+ *  một cột (doRongForm không tính nó); dòng 1 không bao giờ bị lọc ẩn, không bị sapXepTheoNgay đụng. Cột Chi = H.
+ *  Chỉ ghi vào tab TÁCH RA — chủ dự án dặn không sửa tab sổ gốc. */
 export async function ghiTongLoc(sheetId, tab, { soCot }, { sheets = sheetsApi(), sep } = {}) {
   const d = sep ?? await argSepFor(sheetId), c = CHU[COT.chi];
   await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${tab}'!${CHU_COT[soCot + 1]}1`, valueInputOption: "USER_ENTERED",
