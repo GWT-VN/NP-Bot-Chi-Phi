@@ -76,3 +76,20 @@ test("gián đoạn: liệt kê khởi động lại, cảnh báo, gộp lỗi v
   assert.match(s, /#3 .* xong sau 25′ · 3 lần · het_han_muc/)
   assert.match(s, /#4 .* CHƯA XONG \(cho\)/)
 })
+
+// So tab Đối soát với sổ (chủ dự án 2026-10-20): tổng chi hai bên, khoản lệch (bỏ Khớp + tin thử), dòng sổ không từ khoản Zalo.
+import { soSanh } from "./dichvu/doi-soat.mjs";
+test("so sánh với sổ: tổng hai bên, chỉ khoản lệch, dòng sổ ngoài Zalo (Discord / nhập tay)", () => {
+  const h = (ma, nguoi, chi, dong, tt) => { const x = Array(15).fill(""); x[1] = "19/10/2026"; x[3] = nguoi; x[5] = "Thuỷ"; x[7] = chi; return [...x, `#${ma}`, "19/10/2026 09:00", dong, tt] }
+  const bang = [h(1, "Mai", 400000, 2, "Khớp"), h(2, "Dũng", "", "", "Tin thử — không tính tiền (bot ghi: 30.000)"),
+    h(88, "Thuỷ", 44560800, "", "KHÔNG CÒN TRONG SỔ (lấy theo tin ✅ của bot)"), h(7, "Mai", 200000, 3, "Quỹ đã đổi (bot ghi: Cá nhân ứng)")]
+  const rows = [{ dong: 2, ngay: "19/10/2026", nguoi: "Mai", nguonQuy: "Thuỷ", thu: 0, chi: 400000, dienGiai: "Xe", maTin: "1" },
+    { dong: 3, ngay: "19/10/2026", nguoi: "Mai", nguonQuy: "Thuỷ", thu: 0, chi: 200000, dienGiai: "Nước", maTin: "2" },
+    { dong: 4, ngay: "06/10/2026", nguoi: "Kiều Trang", nguonQuy: "GWT - TK Công ty", thu: 0, chi: 14724000, dienGiai: "Vé máy bay", maTin: "1556858628550692914" }]
+  const s = soSanh({ bang, rows }).join("\n")
+  assert.match(s, /sổ: 15\.324\.000 \(3 khoản\) · khoản Zalo bot ghi: 45\.160\.800 \(3 khoản\)/)
+  assert.match(s, /LỆCH với sổ \(2\)/); assert.doesNotMatch(s, /#1 |#2 /)
+  assert.match(s, /#88 Thuỷ · 19\/10\/2026 · CHI 44\.560\.800 · Thuỷ · không có trong sổ → KHÔNG CÒN/)
+  assert.match(s, /#7 Mai .* sổ dòng 3 → Quỹ đã đổi/)
+  assert.match(s, /KHÔNG từ khoản Zalo \(1\)[\s\S]*dòng 4 · 06\/10\/2026 · Kiều Trang · CHI 14\.724\.000 .* mã tin: 1556858628550692914/)
+})

@@ -3,6 +3,7 @@
 // người (hoặc Claude) soát số tiền / quỹ / ngày / nội dung. CSDL mở CHỈ ĐỌC; Sheet chỉ đọc, trừ --ghi-tab (chỉ ghi tab báo cáo riêng,
 // không đụng tab kênh / tab quỹ). Tin không tag bot thì Zalo không gửi cho bot nên không có ở đây.
 //   node dichvu/doi-soat.mjs                              in ra màn hình (trên Mac mini — cần CSDL dịch vụ + đăng nhập Google của bot)
+//   node dichvu/doi-soat.mjs --so-sanh [--tin-thu Dũng] so với sổ: tổng hai bên, khoản lệch, dòng sổ không từ Zalo
 //   node dichvu/doi-soat.mjs --tin 88,89                 chẩn đoán từng khoản: tin gốc, bot trả lời, việc, nhật ký, dòng Sheet khớp
 //   node dichvu/doi-soat.mjs --ghi-tab [--tin-thu Dũng]   ghi tab "Đối soát Zalo" (form như tab kênh; tin thử để trống tiền;
 //                                                         không vào tab quỹ; chạy lại = ghi đè từ dòng 2)
@@ -91,6 +92,21 @@ export function bangDoiSoat({ tins, rows, tinThu = [], soCot = SO_COT }) {
   return ra;
 }
 
+/** So bảng Đối soát (bangDoiSoat) với sổ: tổng chi hai bên, khoản Zalo lệch (bỏ "Khớp" và tin thử), dòng sổ không ứng với khoản
+ *  Zalo nào (Discord / nhập tay / mã tin lạ). 4 cột đối soát luôn ở cuối dòng nên đọc bằng .at(-k), không phụ thuộc độ rộng form. */
+export function soSanh({ bang, rows }) {
+  const tong = (xs) => xs.reduce((s, x) => s + (Number(x) || 0), 0), khop = new Set(bang.map((h) => h.at(-2)).filter(Boolean));
+  const lech = bang.filter((h) => h.at(-1) !== "Khớp" && !h.at(-1).startsWith("Tin thử")), ngoai = rows.filter((r) => !khop.has(r.dong));
+  const so = (thu, chi) => (thu ? `THU ${tien(thu)}` : `CHI ${tien(chi)}`);
+  return [
+    `Tổng chi — sổ: ${tien(tong(rows.map((r) => r.chi)))} (${rows.filter((r) => r.chi).length} khoản) · khoản Zalo bot ghi: ${tien(tong(bang.map((h) => h[7])))} (${bang.filter((h) => h[7]).length} khoản)`,
+    `\nKhoản Zalo LỆCH với sổ (${lech.length}):`,
+    ...lech.map((h) => `  ${h.at(-4)} ${h[3]} · ${h[1]} · ${so(h[6], h[7])} · ${h[5]} · ${h.at(-2) ? `sổ dòng ${h.at(-2)}` : "không có trong sổ"} → ${h.at(-1)}`),
+    `\nDòng sổ KHÔNG từ khoản Zalo (${ngoai.length}) — Discord / nhập tay / mã tin lạ:`,
+    ...ngoai.map((r) => `  dòng ${r.dong} · ${r.ngay} · ${r.nguoi} · ${so(r.thu, r.chi)} · ${r.nguonQuy} · "${cat(r.dienGiai, 60)}" · mã tin: ${r.maTin || "trống"}`),
+  ];
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const GOC = dirname(dirname(fileURLToPath(import.meta.url)));
   const cfg = JSON.parse(readFileSync(join(GOC, "config.json"), "utf8"));
@@ -121,6 +137,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       continue;
     }
     const rows = await books.docSo(cfg.book.sheetId, n.tab);
+    if (a.includes("--so-sanh")) { for (const d of soSanh({ bang: bangDoiSoat({ tins, rows, tinThu }), rows })) console.log(d); continue }
     if (a.includes("--ghi-tab")) {
       const soCot = (await books.docTieuDe(cfg.book.sheetId, n.tab)).length, ten = nhom.length > 1 ? `Đối soát Zalo - ${n.tab}` : "Đối soát Zalo";
       const bang = bangDoiSoat({ tins, rows, tinThu, soCot });
