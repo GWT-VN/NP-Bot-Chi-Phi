@@ -411,9 +411,9 @@ export async function taoTabLoc(sheetId, { mau, title, loc, soCot, sapXep = [] }
     // Nút lọc sẵn, KHÔNG điều kiện: thay bộ lọc nhân bản theo tab mẫu (sổ đang lọc lúc chạy thì tab mới không bị ẩn sẵn dòng).
     { setBasicFilter: { filter: { range: { sheetId: g } } } },
   ] } });
-  // Điều kiện mỗi cột: chua = ô CHỨA chữ (SEARCH); trong = ô trống; coGiaTri = ô có giá trị.
-  const dk = loc.map(({ cot, chua, trong, coGiaTri }) => { const v = `'${mau}'!${CHU_COT[cot]}2:${CHU_COT[cot]}`;
-    return `${d} ${trong ? `${v}=""` : coGiaTri ? `${v}<>""` : `ISNUMBER(SEARCH("${chua}"${d} ${v}))`}` }).join("");
+  // Điều kiện mỗi cột: chua = ô CHỨA chữ (SEARCH); khongChua = ô KHÔNG chứa (kể cả ô trống); coGiaTri = ô có giá trị.
+  const dk = loc.map(({ cot, chua, khongChua, coGiaTri }) => { const v = `'${mau}'!${CHU_COT[cot]}2:${CHU_COT[cot]}`;
+    return `${d} ${coGiaTri ? `${v}<>""` : khongChua ? `NOT(ISNUMBER(SEARCH("${khongChua}"${d} ${v})))` : `ISNUMBER(SEARCH("${chua}"${d} ${v}))`}` }).join("");
   let f = `FILTER('${mau}'!A2:${CHU_COT[soCot - 1]}${dk})`;
   if (sapXep.length) f = `SORT(${f}${sapXep.map((c) => `${d} ${c}${d} TRUE`).join("")})`; // sapXep: số thứ tự cột (1 = A), tăng dần
   await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${title}'!A2`, valueInputOption: "USER_ENTERED",

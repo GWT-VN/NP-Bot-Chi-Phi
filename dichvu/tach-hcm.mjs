@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Tách chi phí theo địa điểm / đơn vị (chủ dự án 2026-10-21): tab sổ có ô "Tổng chi (theo lọc)" ở dòng 1 (SUBTOTAL — lọc gì ra tổng nấy),
 // và 4 tab SỐNG nhân bản từ tab sổ: "HCM" (cột R Địa điểm chứa HCM, đủ 3 đơn vị, xếp theo Đơn vị rồi Ngày) + "Shopee" / "GWT" /
-// "Other" (cột S Đơn vị chứa tên đơn vị — MỌI địa điểm) + "Chưa có đơn vị" (cột S trống, dòng có ngày) → 3 tab đơn vị + tab này = sổ.
+// "Other" (cột S Đơn vị chứa tên đơn vị — MỌI địa điểm) + "Khác - chưa có đơn vị" (cột S không chứa tên nào trong 3 đơn vị, kể cả
+// trống; dòng có ngày) → 3 tab đơn vị + tab này = tổng sổ (trừ khi một ô ghi HAI đơn vị — dòng đó vào 2 tab).
 // Mỗi tab là một hàm FILTER đọc thẳng tab sổ → sửa ở sổ là tab ăn theo, KHÔNG cần chạy lại. Tab đã có thì không đụng (tab bản chụp
 // cũ: xoá rồi chạy lại). In thêm bảng đếm Địa điểm × Đơn vị và dòng có tiền mà không có ngày (dòng tổng gõ tay → SUBTOTAL cộng cả nó).
 //   node dichvu/tach-hcm.mjs ["tên tab sổ"]     mặc định: tab của nhóm Zalo đầu tiên trong config (trên Mac mini — cần đăng nhập Google của bot)
@@ -21,8 +22,9 @@ for (const r of rows.filter((x) => !x.ngay && (x.thu || x.chi))) console.log(`�
 const soCot = await books.doRongForm(sheetId, so);
 await books.ghiTongLoc(sheetId, so, { soCot }); // trước khi nhân bản → 4 tab mới có sẵn ô tổng theo lọc của riêng nó
 console.log(`đã ghi ô "Tổng chi (theo lọc)" ở dòng 1 tab "${so}"`);
-const tabs = [["HCM", [{ cot: R, chua: "HCM" }], [S + 1, 2]], ...["Shopee", "GWT", "Other"].map((dv) => [dv, [{ cot: S, chua: dv }], []]),
-  ["Chưa có đơn vị", [{ cot: S, trong: true }, { cot: 1, coGiaTri: true }], []]];
+const DON_VI = ["Shopee", "GWT", "Other"];
+const tabs = [["HCM", [{ cot: R, chua: "HCM" }], [S + 1, 2]], ...DON_VI.map((dv) => [dv, [{ cot: S, chua: dv }], []]),
+  ["Khác - chưa có đơn vị", [...DON_VI.map((dv) => ({ cot: S, khongChua: dv })), { cot: 1, coGiaTri: true }], []]];
 for (const [title, loc, sapXep] of tabs) {
   const moi = await books.taoTabLoc(sheetId, { mau: so, title, loc, soCot, sapXep });
   console.log(moi ? `đã tạo tab "${title}" (tự cập nhật theo sổ)` : `tab "${title}" đã có — không đụng; tab bản chụp cũ thì xoá rồi chạy lại`);
