@@ -28,12 +28,12 @@ function dung({ coFile = async () => false, gio = "2026-10-10T19:00:00+07:00", b
   return { db, kho, ct, khoan, gui, sua, nk, troi: (ms) => { luc += ms }, datGio: (s) => { luc = Date.parse(s) } }
 }
 
-test("CSDL cũ (phiên bản 1) mở lại → tự nâng lên 2, có bảng chung_tu, dữ liệu cũ còn", () => {
+test("CSDL cũ (phiên bản 1) mở lại → tự nâng lên bản mới nhất, có bảng chung_tu, dữ liệu cũ còn", () => {
   const f = join(mkdtempSync(join(tmpdir(), "ct-")), "np.sqlite")
   const db1 = moCsdl(f), a = taoKhoTin(db1, { tenBot: "Bot GWT CP" }).nhanTin(cn("@Bot GWT CP chi 50k"))
   db1.exec("DROP TABLE chung_tu; UPDATE phien_ban SET so = 1"); db1.close()
   const db2 = moCsdl(f)
-  assert.equal(db2.prepare("SELECT so FROM phien_ban").get().so, 2)
+  assert.equal(db2.prepare("SELECT so FROM phien_ban").get().so, 3)
   assert.equal(taoKhoTin(db2).lay(a.id).noi_dung, "chi 50k")
   assert.equal(db2.prepare("SELECT COUNT(*) AS n FROM chung_tu").get().n, 0)
 })
@@ -117,4 +117,18 @@ test("nhắc tối → nhắc sáng: gioNhac '8:00' (không đệm 0) — 07:59 
   ct.them({ tin, loai: "chi", so_tien: 50000, link: "https://drive.google.com/drive/folders/F1", co_anh: false })
   assert.equal(ct.nhacToi(), 0)
   luc = Date.parse("2026-10-10T08:01:00+07:00"); assert.equal(ct.nhacToi(), 1)
+})
+
+// Đối soát 2026-10-20: trước bản sửa, mọi lần sửa ghi chú sổ cho khoản Zalo đều "không thấy dòng" (mã tin thành số) mà vẫn bị
+// đánh dấu xong. Bản CSDL 3 mở lại các khoản đó để lượt quét sau sửa ghi chú lại; khoản có ảnh từ lúc ghi giữ nguyên.
+test("CSDL bản 3: khoản đã bổ sung qua quét → mở lại để sửa ghi chú sổ; khoản có ảnh lúc ghi → không đụng", () => {
+  const f = join(mkdtempSync(join(tmpdir(), "ct-")), "np.sqlite")
+  const db1 = moCsdl(f), k = taoKhoTin(db1, { tenBot: "Bot GWT CP" })
+  const a = k.nhanTin(cn("@Bot GWT CP chi 50k a")), b = k.nhanTin(cn("@Bot GWT CP chi 60k b"))
+  const them = db1.prepare("INSERT INTO chung_tu(tin_id,chat_id,ma,ten,loai,so_tien,thu_muc,link,ghi_luc,co_file,bo_sung_luc) VALUES (?,?,?,?,?,?,?,?,?,1,?)")
+  them.run(a.id, G, a.ma, "Dũng", "chi", 50000, "F1", "https://drive.google.com/drive/folders/F1", 1000, 1000 + 3600e3)
+  them.run(b.id, G, b.ma, "Dũng", "chi", 60000, "F2", "https://drive.google.com/drive/folders/F2", 2000, 2000)
+  db1.exec("UPDATE phien_ban SET so = 2"); db1.close()
+  const db2 = moCsdl(f), bs = (id) => db2.prepare("SELECT bo_sung_luc FROM chung_tu WHERE tin_id=?").get(id).bo_sung_luc
+  assert.deepEqual([bs(a.id), bs(b.id)], [null, 2000])
 })

@@ -32,6 +32,10 @@ CREATE TABLE moc(khoa TEXT PRIMARY KEY, luc INTEGER NOT NULL, ghi_chu TEXT);
   so_tien INTEGER, ngay TEXT, thu_muc TEXT NOT NULL, link TEXT NOT NULL, ghi_luc INTEGER NOT NULL,
   co_file INTEGER NOT NULL DEFAULT 0, bo_sung_luc INTEGER);
 CREATE INDEX chung_tu_thieu ON chung_tu(co_file, chat_id);
+`,
+// v3 (2026-10-20, đối soát): trước bản sửa timDongTheoMaTin mọi lần sửa ghi chú sổ cho khoản Zalo đều "không thấy dòng" mà vẫn bị
+// đánh dấu xong → mở lại khoản đã bổ sung QUA QUÉT (bo_sung_luc muộn hơn lúc ghi) để lượt quét sau sửa ghi chú. Có ảnh lúc ghi: giữ.
+`UPDATE chung_tu SET bo_sung_luc = NULL WHERE co_file = 1 AND bo_sung_luc - ghi_luc > 60000;
 `];
 
 export function moCsdl(file) {

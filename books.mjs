@@ -105,7 +105,8 @@ export function buildFundRow({ loai = "chi", ngay, dienGiai, nguoi = "", hoaDon 
   return [
     "=ROW()-1", toDMY(ngay), anToan(dienGiai || ""), anToan(nguoi || ""), hd, anToan(nguonQuy || ""),
     isThu ? n : "", isThu ? "" : n,
-    TON_FUND, link || "", anToan(ghiChu || ""), maTin ? String(maTin) : "",
+    // Mã tin dạng CHỮ (dấu ' đầu, USER_ENTERED): mã Zalo 16 chữ số không có ' bị Sheets đổi thành số "1,79144E+15" (đối soát 2026-10-20).
+    TON_FUND, link || "", anToan(ghiChu || ""), maTin ? `'${maTin}` : "",
     !isThu && nguonQuy === CA_NHAN_UNG ? "Chưa" : "", "", link || "",
   ];
 }
@@ -298,8 +299,9 @@ export async function suaDongSo({ sheetId, tab, rowNum, expectDMY, dienGiai, ghi
 
 // CLI nhẹ: ping <sheetId> | processed <sheetId>
 // ── v2: tìm / sửa / đọc dòng cho MCP npso ─────────────────────────────────────
-export async function timDongTheoMaTin(sheetId, tab, msgId) {
-  const r = await sheetsApi().spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!L1:L` });
+export async function timDongTheoMaTin(sheetId, tab, msgId, { sheets = sheetsApi() } = {}) {
+  // Giá trị GỐC: dòng cũ có mã tin đã thành số — đọc chữ hiển thị ("1,79144E+15") thì không bao giờ khớp (đối soát 2026-10-20).
+  const r = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!L1:L`, valueRenderOption: "UNFORMATTED_VALUE" });
   return viTriMaTin(r.data.values || [], msgId);
 }
 

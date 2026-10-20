@@ -33,7 +33,7 @@ test("đúng luật + khớp → ghi ngay, 12 cột, Mã tin, ✅ và gỡ ❓ s
   const r = await t.so.ghiKhoan(DUNG)
   assert.equal(r.ok, true)
   const row = t.ghi[0].rows[0]
-  assert.equal(row.length, 15); assert.equal(row[14], "https://drive/x"); assert.equal(row[5], "Quỹ công ty"); assert.equal(row[7], 1250000); assert.equal(row[11], "100"); assert.equal(row[9], "https://drive/x")
+  assert.equal(row.length, 15); assert.equal(row[14], "https://drive/x"); assert.equal(row[5], "Quỹ công ty"); assert.equal(row[7], 1250000); assert.equal(row[11], "'100"); assert.equal(row[9], "https://drive/x")
   assert.deepEqual(t.ghi[0].msgIds, ["100"])
   assert.deepEqual(t.react[0], [KENH, "100", "✅"]); assert.deepEqual(t.unreact[0], [KENH, "100", "❓"])
 })

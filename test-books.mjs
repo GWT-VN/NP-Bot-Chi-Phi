@@ -1,6 +1,6 @@
 // Test tầng ghi sổ NP (offline, không mạng) — chạy: node test-books.mjs (exit 0 = đạt).
 import assert from "node:assert/strict";
-import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, dongTuRange, yeuCauTheoForm, capNhatDong } from "./books.mjs";
+import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, dongTuRange, yeuCauTheoForm, capNhatDong, timDongTheoMaTin } from "./books.mjs";
 
 let n = 0;
 const t = (ten, fn) => { fn(); n++; console.log("  ✓ " + ten); };
@@ -9,7 +9,7 @@ t("dòng chi có hoá đơn đỏ: 12 cột A–L (Nguồn quỹ F, Mã tin L), 
   const r = buildFundRow({ loai: "chi", ngay: "2026-10-05", dienGiai: "Mua vật tư mẫu", nguoi: "Lan", hoaDon: "Có", nguonQuy: "Quỹ công ty", amount: 1250000, link: "https://drive/x", ghiChu: "dự án X", maTin: "1500" });
   assert.equal(r.length, 15);
   assert.deepEqual([r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[9], r[10], r[11]],
-    ["=ROW()-1", "05/10/2026", "Mua vật tư mẫu", "Lan", "Có", "Quỹ công ty", "", 1250000, "https://drive/x", "dự án X", "1500"]);
+    ["=ROW()-1", "05/10/2026", "Mua vật tư mẫu", "Lan", "Có", "Quỹ công ty", "", 1250000, "https://drive/x", "dự án X", "'1500"]);
 });
 t("dòng chi không khai hoá đơn → mặc định Không", () => {
   const r = buildFundRow({ loai: "chi", ngay: "2026-10-05", dienGiai: "Ship", amount: 45000 });
@@ -93,6 +93,15 @@ await ta("[Review Focus] capNhatDong không truyền tuỳ chọn mới → nố
   await capNhatDong("S", "Chi phí chung", 3, { ghiChuThem: "sửa theo X" }, { sheets: s.sheets });
   assert.deepEqual(s.goi[0][1].requestBody.data, [{ range: "'Chi phí chung'!K3", values: [["không có ảnh chứng từ; sửa theo X"]] }]);
   assert.deepEqual(await capNhatDong("S", "T", 3, {}, { sheets: sheetsGia("").sheets }), { updated: false });
+});
+
+// Đối soát 2026-10-20: mã tin Zalo 16 chữ số bị Sheets (USER_ENTERED) đổi thành SỐ, hiện "1,79144E+15" → tìm dòng theo chữ
+// hiển thị không bao giờ khớp (sửa khoản / bổ sung chứng từ hỏng). Đọc giá trị gốc; ghi mã tin dạng chữ (dấu ' đầu).
+await ta("timDongTheoMaTin đọc giá trị GỐC: ô mã tin đã thành số vẫn tìm ra dòng", async () => {
+  let req;
+  const sheets = { spreadsheets: { values: { get: async (x) => { req = x; return { data: { values: [["Mã tin"], ["1556858628550692914"], [1791432704193000]] } }; } } } };
+  assert.equal(await timDongTheoMaTin("S", "Đoàn", "1791432704193000", { sheets }), 3);
+  assert.equal(req.valueRenderOption, "UNFORMATTED_VALUE");
 });
 
 console.log(`\n${n} test đạt`);
