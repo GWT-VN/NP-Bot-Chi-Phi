@@ -97,7 +97,7 @@ export const CA_NHAN_UNG = "Cá nhân ứng";
 const CHU = "ABCDEFGHIJKLMNO";
 // Chữ do NGƯỜI gõ (diễn giải, tên, ghi chú) đi qua USER_ENTERED → "=…", "+…", "-…", "@…" sẽ bị Sheet hiểu là công thức/số
 // (vd =IMPORTXML(...) gửi dữ liệu ra ngoài). Thêm dấu ' ở đầu để Sheet coi là chữ. Công thức của BOT (STT, Tồn) không qua đây.
-const anToan = (v) => (typeof v === "string" && /^[=+\-@]/.test(v) ? `'${v}` : v);
+export const anToan = (v) => (typeof v === "string" && /^[=+\-@]/.test(v) ? `'${v}` : v);
 export function buildFundRow({ loai = "chi", ngay, dienGiai, nguoi = "", hoaDon = "Không", nguonQuy = "", amount = 0, link = "", ghiChu = "", maTin = "" }) {
   const isThu = loai === "thu";
   const hd = isThu ? "—" : (hoaDon || "Không");
@@ -340,23 +340,35 @@ export async function capNhatDong(sheetId, tab, rowNum, { dienGiai, hoaDon, nguo
 
 // Đọc toàn bộ sổ (cho doc_so). Ngày giữ dạng chữ dd/mm/yyyy, số giữ dạng số.
 export async function docSo(sheetId, tab) {
-  const r = await sheetsApi().spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!A2:L`,
+  const r = await sheetsApi().spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!A2:Z`,
     valueRenderOption: "UNFORMATTED_VALUE", dateTimeRenderOption: "FORMATTED_STRING" });
   return (r.data.values || []).map((x, i) => ({ dong: i + 2, ngay: x[COT.ngay] ?? "", dienGiai: x[COT.dienGiai] ?? "",
     nguoi: x[COT.nguoi] ?? "", hoaDon: x[COT.hoaDon] ?? "", nguonQuy: x[COT.nguonQuy] ?? "", thu: Number(x[COT.thu]) || 0,
-    chi: Number(x[COT.chi]) || 0, ghiChu: x[COT.ghiChu] ?? "", maTin: String(x[COT.maTin] ?? "") })).filter((d) => d.ngay || d.thu || d.chi);
+    chi: Number(x[COT.chi]) || 0, ghiChu: x[COT.ghiChu] ?? "", maTin: String(x[COT.maTin] ?? ""), url: x[COT.url] ?? "", hang: x })).filter((d) => d.ngay || d.thu || d.chi);
 }
 
-/** Ghi một tab BÁO CÁO (đối soát…): chưa có thì tạo, xoá nội dung cũ rồi ghi lại từ A1. RAW: chữ "=…" trong tin không thành công
- *  thức, ngày/số giữ nguyên kiểu. Không phải tab kênh → không vào tab quỹ. ponytail: tab mới 1000 dòng — quá thì thêm appendDimension. */
-export async function ghiTabBaoCao(sheetId, title, values, { sheets = sheetsApi() } = {}) {
-  const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties.title" });
-  if (!(meta.data.sheets || []).some((x) => x.properties?.title === title)) {
-    await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [{ addSheet: { properties: { title, gridProperties: { frozenRowCount: 1 } } } }] } });
+// Dòng tiêu đề của tab (độ rộng form — tab kênh có thể thêm cột kế toán sau O).
+export async function docTieuDe(sheetId, tab) {
+  return (await sheetsApi().spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${tab}'!1:1` })).data.values?.[0] || [];
+}
+
+/** Ghi một tab BÁO CÁO theo FORM tab `mau` (đối soát…, chủ dự án 2026-10-20): chưa có thì nhân bản tab mẫu (giữ định dạng, độ rộng,
+ *  cột ẩn), xoá giá trị từ dòng 2 rồi ghi `rows` USER_ENTERED như commit (công thức STT/Tồn chạy, chữ người gõ đã anToan sẵn).
+ *  `tieuDeThem` ghi ở dòng 1 từ cột `cotThemTu` (0-based). Không phải tab kênh → không vào tab quỹ. */
+export async function ghiTabTheoMau(sheetId, { mau, title, rows, tieuDeThem = [], cotThemTu }, { sheets = sheetsApi(), sep } = {}) {
+  const ds = (await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "sheets.properties(sheetId,title)" })).data.sheets || [];
+  const tim = (t) => ds.find((x) => x.properties?.title === t);
+  if (!tim(title)) {
+    if (!tim(mau)) throw new Error(`không thấy tab mẫu "${mau}"`);
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: [{ duplicateSheet: {
+      sourceSheetId: tim(mau).properties.sheetId, newSheetName: title, insertSheetIndex: ds.length } }] } });
   }
-  await sheets.spreadsheets.values.clear({ spreadsheetId: sheetId, range: `'${title}'!A:Z` });
-  await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${title}'!A1`, valueInputOption: "RAW", requestBody: { values } });
-  return values.length;
+  await sheets.spreadsheets.values.clear({ spreadsheetId: sheetId, range: `'${title}'!A2:Z` });
+  await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${title}'!A2`, valueInputOption: "USER_ENTERED",
+    requestBody: { values: localizeRows(rows, sep ?? await argSepFor(sheetId)) } });
+  if (tieuDeThem.length) await sheets.spreadsheets.values.update({ spreadsheetId: sheetId, range: `'${title}'!${"ABCDEFGHIJKLMNOPQRSTUVWXYZ"[cotThemTu]}1`,
+    valueInputOption: "RAW", requestBody: { values: [tieuDeThem] } });
+  return rows.length;
 }
 
 if (path.resolve(process.argv[1] || "") === fileURLToPath(import.meta.url)) {

@@ -1,6 +1,6 @@
 // Test tầng ghi sổ NP (offline, không mạng) — chạy: node test-books.mjs (exit 0 = đạt).
 import assert from "node:assert/strict";
-import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, dongTuRange, yeuCauTheoForm, capNhatDong, timDongTheoMaTin, ghiTabBaoCao } from "./books.mjs";
+import { buildFundRow, localizeRows, laLocaleVi, viTriMaTin, dongTuRange, yeuCauTheoForm, capNhatDong, timDongTheoMaTin, ghiTabTheoMau } from "./books.mjs";
 
 let n = 0;
 const t = (ten, fn) => { fn(); n++; console.log("  ✓ " + ten); };
@@ -104,17 +104,26 @@ await ta("timDongTheoMaTin đọc giá trị GỐC: ô mã tin đã thành số 
   assert.equal(req.valueRenderOption, "UNFORMATTED_VALUE");
 });
 
-// Tab báo cáo đối soát (2026-10-20): chưa có thì tạo; có rồi thì xoá nội dung cũ rồi ghi lại từ A1, RAW (chữ "=…" không thành công thức).
-await ta("ghiTabBaoCao: tab chưa có → tạo (đóng băng tiêu đề); xoá cũ; ghi RAW từ A1; tab đã có → không tạo lại", async () => {
+// Tab đối soát theo FORM tab kênh (chủ dự án 2026-10-20): chưa có → nhân bản tab mẫu (giữ định dạng, cột ẩn, dropdown); xoá dữ
+// liệu cũ từ dòng 2; ghi USER_ENTERED (công thức STT/Tồn chạy, dấu ngăn theo locale); tiêu đề cột thêm ở dòng 1 sau cột của mẫu.
+await ta("ghiTabTheoMau: nhân bản tab mẫu khi chưa có; xoá từ dòng 2; ghi USER_ENTERED đã đổi dấu ngăn; tiêu đề cột thêm; tab mẫu không có → lỗi", async () => {
   const goi = [];
-  const gia = (coSan) => ({ spreadsheets: { get: async () => ({ data: { sheets: coSan ? [{ properties: { title: "Đối soát Zalo" } }] : [{ properties: { title: "Khác" } }] } }),
-    batchUpdate: async (x) => { goi.push(["tao", x.requestBody.requests[0].addSheet.properties]); },
+  const gia = (coSan) => ({ spreadsheets: {
+    get: async () => ({ data: { sheets: [{ properties: { sheetId: 7, title: "Đoàn" } }, ...(coSan ? [{ properties: { sheetId: 9, title: "Đối soát Zalo" } }] : [])] } }),
+    batchUpdate: async (x) => { goi.push(["nhan_ban", x.requestBody.requests[0].duplicateSheet]); },
     values: { clear: async (x) => { goi.push(["xoa", x.range]); }, update: async (x) => { goi.push(["ghi", x.range, x.valueInputOption, x.requestBody.values]); } } } });
-  assert.equal(await ghiTabBaoCao("S", "Đối soát Zalo", [["STT"], [1]], { sheets: gia(false) }), 2);
-  assert.deepEqual(goi, [["tao", { title: "Đối soát Zalo", gridProperties: { frozenRowCount: 1 } }], ["xoa", "'Đối soát Zalo'!A:Z"], ["ghi", "'Đối soát Zalo'!A1", "RAW", [["STT"], [1]]]]);
+  const hang = [["=ROW()-1", "=SUM(A\u001FB)", "x", 5]];
+  assert.equal(await ghiTabTheoMau("S", { mau: "Đoàn", title: "Đối soát Zalo", rows: hang, tieuDeThem: ["Zalo #", "Tình trạng"], cotThemTu: 15 }, { sheets: gia(false), sep: ";" }), 1);
+  assert.deepEqual(goi, [
+    ["nhan_ban", { sourceSheetId: 7, newSheetName: "Đối soát Zalo", insertSheetIndex: 1 }],
+    ["xoa", "'Đối soát Zalo'!A2:Z"],
+    ["ghi", "'Đối soát Zalo'!A2", "USER_ENTERED", [["=ROW()-1", "=SUM(A;B)", "x", 5]]],
+    ["ghi", "'Đối soát Zalo'!P1", "RAW", [["Zalo #", "Tình trạng"]]],
+  ]);
   goi.length = 0;
-  await ghiTabBaoCao("S", "Đối soát Zalo", [["STT"]], { sheets: gia(true) });
+  await ghiTabTheoMau("S", { mau: "Đoàn", title: "Đối soát Zalo", rows: hang }, { sheets: gia(true), sep: ";" });
   assert.deepEqual(goi.map((g) => g[0]), ["xoa", "ghi"]);
+  await assert.rejects(ghiTabTheoMau("S", { mau: "Không có", title: "Mới", rows: [] }, { sheets: gia(false), sep: ";" }), /tab mẫu "Không có"/);
 });
 
 console.log(`\n${n} test đạt`);
