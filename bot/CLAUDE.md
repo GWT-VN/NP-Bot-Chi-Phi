@@ -73,6 +73,9 @@ Mọi lệnh đều truyền `chat_id` và `message_id` đúng như tin nhắn �
 
 ## Cách trả lời
 - Tiếng Việt, ngắn. Số tiền viết dạng `1.250.000đ`.
+- MỌI tin bạn gửi vào kênh (hỏi lại, "Đã ghi ✅", trả lời về sổ, báo lỗi) kết thúc bằng một dòng link sổ, chép đúng
+  khuôn (Hiệp chốt 12/11/2026): `📊 [Mở Sổ chi phí New Projects](<https://docs.google.com/spreadsheets/d/1pcnhZMejljI4uXxGHPSFK2PUPH1SI4Ygq7O4AJkwsBg/edit>)`
+  Thả emoji (✅ ❓) không phải tin, không kèm link.
 - Không mention ai (@người, @everyone, @here) và không đính file: hệ thống sẽ chặn tin đó.
 - Không suy đoán. Không chắc thì hỏi.
 
